@@ -1,5 +1,6 @@
 // Inventory -> As-Built view model. Pure: shared by the As-Built tab and the Markdown export.
 import type { ReferenceGraph, Ref } from '../model/graph';
+import { routeReach, type ReachState } from '../model/reach';
 import type { Inventory } from '../model/types';
 
 export interface AsBuiltSummary {
@@ -50,11 +51,26 @@ export interface PackRow {
   version: string;
 }
 
+export interface ReachCell {
+  state: ReachState;
+  /** Final and a definite match: this Source's events stop here. */
+  stops: boolean;
+}
+
+export interface ReachMatrix {
+  routes: { id: string; label: string; enabled: boolean; reachedBy: number }[];
+  /** One row per enabled Source that uses the Routing table; cells follow `routes`. */
+  rows: { sourceId: string; type: string; cells: ReachCell[] }[];
+  /** Enabled QuickConnect Sources, which bypass the Routing table. */
+  quickConnect: string[];
+}
+
 export interface AsBuilt {
   group: string;
   criblVersion?: string;
   summary: AsBuiltSummary;
   routes: RouteRow[];
+  reach: ReachMatrix;
   sources: SourceRow[];
   pipelines: PipelineRow[];
   destinations: DestinationRow[];
@@ -77,6 +93,42 @@ export function describeRefs(refs: Ref[] | undefined, inv: Inventory): string {
   return refs
     .map((r) => `${KIND_LABEL[r.kind]} ${r.kind === 'route' ? routeName(r.from) : r.from}`)
     .join(', ');
+}
+
+const REACH_TEXT: Record<ReachState, string> = {
+  yes: '✓',
+  maybe: '?',
+  no: '—',
+  unreached: '·',
+  disabled: 'off',
+};
+
+/** Short cell text for the reach matrix, shared by the UI and the Markdown export. */
+export const reachLabel = (c: ReachCell) => (c.stops ? '✓ stops' : REACH_TEXT[c.state]);
+
+export const REACH_LEGEND =
+  '✓ matches; ✓ stops: Final match, so later Routes never see these events; ? depends on event content; — filter never matches; · never reached (stopped by an earlier Route); off: Route disabled';
+
+/** Enabled Routes no routed Source can reach, even possibly. */
+export const unreachedRoutes = (m: ReachMatrix) => m.routes.filter((r) => r.enabled && r.reachedBy === 0);
+
+export function buildReachMatrix(inv: Inventory): ReachMatrix {
+  const routes = [...inv.routes].sort((a, b) => a.index - b.index);
+  const rows = [...routeReach(inv)].map(([sourceId, cells]) => ({
+    sourceId,
+    type: inv.sources.find((s) => s.id === sourceId)?.type ?? '',
+    cells: cells.map(({ state, stops }) => ({ state, stops })),
+  }));
+  return {
+    routes: routes.map((r, i) => ({
+      id: r.id,
+      label: `${r.index + 1}. ${r.name}`,
+      enabled: !r.disabled,
+      reachedBy: rows.filter((row) => ['yes', 'maybe'].includes(row.cells[i].state)).length,
+    })),
+    rows,
+    quickConnect: inv.sources.filter((s) => !s.sendToRoutes && !s.disabled).map((s) => s.id),
+  };
 }
 
 export function buildAsBuilt(inv: Inventory, graph: ReferenceGraph): AsBuilt {
@@ -112,6 +164,7 @@ export function buildAsBuilt(inv: Inventory, graph: ReferenceGraph): AsBuilt {
         enabled: !r.disabled,
       };
     }),
+    reach: buildReachMatrix(inv),
     sources: inv.sources.map((s) => ({
       id: s.id,
       type: s.type,

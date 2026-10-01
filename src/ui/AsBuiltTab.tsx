@@ -4,7 +4,19 @@ import type { ReferenceGraph } from '../model/graph';
 import type { Finding } from '../lint/types';
 import { routeReach } from '../model/reach';
 import type { Inventory } from '../model/types';
-import { buildAsBuilt, type DestinationRow, type PackRow, type PipelineRow, type RouteRow, type SourceRow } from '../report/asBuilt';
+import {
+  buildAsBuilt,
+  REACH_LEGEND,
+  reachLabel,
+  unreachedRoutes,
+  type DestinationRow,
+  type PackRow,
+  type PipelineRow,
+  type ReachCell,
+  type ReachMatrix,
+  type RouteRow,
+  type SourceRow,
+} from '../report/asBuilt';
 import { layoutFlow } from '../report/flowLayout';
 import { toMarkdown, type SuppressedFinding } from '../report/markdown';
 import { downloadText } from './download';
@@ -60,6 +72,71 @@ const packColumns = defineColumns<PackRow & Record<string, unknown>>([
   { id: 'name', label: 'Name' },
   { id: 'version', label: 'Version' },
 ]);
+
+const REACH_TITLE: Record<string, string> = {
+  stops: "Matches and Final: later Routes never see this Source's events",
+  yes: "Matches: this Source's events reach this Route",
+  maybe: 'Depends on event content',
+  no: 'The filter never matches this Source',
+  unreached: "Never reached: an earlier Final Route takes all of this Source's events",
+  disabled: 'Route disabled',
+};
+
+/** Route cells are keyed `r:<route id>` so they can't collide with the Source columns. */
+type ReachItem = { id: string; source: string; [route: `r:${string}`]: ReachCell };
+
+function ReachTable({ matrix }: { matrix: ReachMatrix }) {
+  const columns = useMemo(
+    () =>
+      defineColumns<ReachItem>([
+        { id: 'source', label: 'Source' },
+        ...matrix.routes.map((r) => ({
+          id: `r:${r.id}` as const,
+          label: r.label,
+          render: (c: ReachCell) => {
+            const kind = c.stops ? 'stops' : c.state;
+            return (
+              <span className={`reach reach--${kind}`} title={REACH_TITLE[kind]}>
+                {reachLabel(c)}
+              </span>
+            );
+          },
+        })),
+      ]),
+    [matrix],
+  );
+  const items = matrix.rows.map((row) => ({
+    id: row.sourceId,
+    source: row.sourceId,
+    ...Object.fromEntries(row.cells.map((c, i) => [`r:${matrix.routes[i].id}`, c])),
+  })) as ReachItem[];
+  const unreached = unreachedRoutes(matrix);
+  return (
+    <>
+      <Text>
+        Which Routes each Source&apos;s events can reach, read from the Route filters. Only the input id and literal
+        Source fields are known, so filters on event content show as &ldquo;?&rdquo;.
+      </Text>
+      <div className="reach-scroll">
+        <Table
+          items={items}
+          columns={columns}
+          visibleColumns={['source', ...matrix.routes.map((r) => `r:${r.id}` as const)]}
+          density="compact"
+        />
+      </div>
+      <Text variant="body-sm-normal">{REACH_LEGEND}</Text>
+      {unreached.length > 0 && (
+        <Text>
+          <strong>No Source reaches:</strong> {unreached.map((r) => r.label).join(', ')}
+        </Text>
+      )}
+      {matrix.quickConnect.length > 0 && (
+        <Text>{`QuickConnect Sources bypass the Routing table: ${matrix.quickConnect.join(', ')}.`}</Text>
+      )}
+    </>
+  );
+}
 
 function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return (
@@ -141,6 +218,11 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed }: P
           density="compact"
         />
       </Section>
+      {report.reach.rows.length > 0 && report.reach.routes.length > 0 && (
+        <Section title="Source × Route reach" count={report.reach.rows.length}>
+          <ReachTable matrix={report.reach} />
+        </Section>
+      )}
       <Section title="Sources" count={report.sources.length}>
         <Table
           items={report.sources as Rows<SourceRow>}

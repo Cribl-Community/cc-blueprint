@@ -619,3 +619,31 @@
 .field-diff .arrow {
   color: token('color.foreground.subtle');
 }
+
+/* Source × Route reach */
+.reach-scroll {
+  overflow-x: auto;
+}
+
+.reach {
+  white-space: nowrap;
+}
+
+.reach--yes,
+.reach--stops {
+  color: token('color.foreground.success.default');
+}
+
+.reach--stops {
+  font-weight: 600;
+}
+
+.reach--maybe {
+  color: token('color.foreground.info.default');
+}
+
+.reach--no,
+.reach--unreached,
+.reach--disabled {
+  color: token('color.foreground.subtle');
+}

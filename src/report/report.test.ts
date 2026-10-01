@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { demoRaw, destination, inventory, pipeline, route, source, workspaceDefaultRaw } from '../../test/inventory';
 import { buildGraph } from '../model/graph';
 import { normalize } from '../model/normalize';
-import { buildAsBuilt } from './asBuilt';
+import { buildAsBuilt, unreachedRoutes } from './asBuilt';
 import { layoutFlow, NODE_W } from './flowLayout';
 import { lint } from '../lint/runner';
 import { cell, code, toMarkdown } from './markdown';
@@ -39,6 +39,34 @@ describe('buildAsBuilt', () => {
     expect(report.pipelines.find((p) => p.id === 'unused')?.usedBy).toBe('—');
     expect(report.pipelines.find((p) => p.id === 'qc_pipe')?.usedBy).toBe('QuickConnect gen_qc');
     expect(report.destinations.find((d) => d.id === 'lake')?.usedBy).toBe('route web, QuickConnect gen_qc');
+  });
+});
+
+describe('reach matrix', () => {
+  it('has a row per enabled routed source and lists QuickConnect sources separately', () => {
+    const { reach } = buildAsBuilt(demo, buildGraph(demo));
+    expect(reach.routes.map((r) => r.label)).toEqual(['1. web', '2. default']);
+    // `sourcetype=='web'` depends on event content; the catch-all default is Final.
+    expect(reach.rows).toEqual([
+      { sourceId: 'gen_web', type: 'datagen', cells: [{ state: 'maybe', stops: false }, { state: 'yes', stops: true }] },
+    ]);
+    expect(reach.quickConnect).toEqual(['gen_qc']);
+  });
+
+  it('exports the matrix and names routes no source reaches', () => {
+    const inv = normalize(demoRaw()); // catch_all_early (route 2) stops every source
+    const graph = buildGraph(inv);
+    const report = buildAsBuilt(inv, graph);
+    expect(unreachedRoutes(report.reach).map((r) => r.label)).toEqual([
+      '3. auth_to_splunk',
+      '4. auth_parse',
+      '5. noisy',
+      '6. default',
+    ]);
+    const md = toMarkdown(report, graph.flows, new Date(0));
+    expect(md).toContain('## Source × Route reach');
+    expect(md).toContain('| gen_auth | — | ✓ stops | · | · | · | · |');
+    expect(md).toContain('**No Source reaches:** 3. auth_to_splunk, 4. auth_parse, 5. noisy, 6. default');
   });
 });
 

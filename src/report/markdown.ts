@@ -3,7 +3,7 @@
 import type { Flow } from '../model/graph';
 import type { Finding } from '../lint/types';
 import type { Suppression } from '../store/suppressions';
-import type { AsBuilt } from './asBuilt';
+import { REACH_LEGEND, reachLabel, unreachedRoutes, type AsBuilt } from './asBuilt';
 
 /**
  * Makes a value safe inside a Markdown table cell. Only `|` is escaped: GFM honors `\|` even
@@ -120,6 +120,35 @@ function findingsSection(findings: Finding[], suppressed: SuppressedFinding[]): 
   return [...out, ...suppressedSection(suppressed)];
 }
 
+function reachSection(report: AsBuilt): string[] {
+  const m = report.reach;
+  if (!m.rows.length || !m.routes.length) return [];
+  const out = ['## Source × Route reach', ''];
+  out.push(
+    'Which Routes each Source\'s events can reach, read from the Route filters (never executed). ' +
+      'Only the input id and literal Source fields are known, so filters on event content show as "?".',
+  );
+  out.push('');
+  out.push(
+    table(
+      ['Source', ...m.routes.map((r) => cell(r.label))],
+      m.rows.map((row) => [cell(row.sourceId), ...row.cells.map((c) => reachLabel(c))]),
+    ),
+  );
+  out.push(REACH_LEGEND);
+  out.push('');
+  const unreached = unreachedRoutes(m);
+  if (unreached.length) {
+    out.push(`**No Source reaches:** ${unreached.map((r) => cell(r.label)).join(', ')}`);
+    out.push('');
+  }
+  if (m.quickConnect.length) {
+    out.push(`QuickConnect Sources bypass the Routing table: ${m.quickConnect.map(cell).join(', ')}.`);
+    out.push('');
+  }
+  return out;
+}
+
 export function toMarkdown(
   report: AsBuilt,
   flows: Flow[],
@@ -177,6 +206,7 @@ export function toMarkdown(
       ]),
     ),
   );
+  out.push(...reachSection(report));
   out.push('## Sources');
   out.push('');
   out.push(
