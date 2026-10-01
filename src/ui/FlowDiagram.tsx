@@ -1,10 +1,14 @@
 import { useMemo, useState } from 'react';
 import type { ReferenceGraph } from '../model/graph';
+import type { RouteReach } from '../model/reach';
 import { busFlow, HEADER_H, NODE_H, NODE_W, PAD, type FlowLayout, type LayoutNode } from '../report/flowLayout';
+import { stronger, traceHover, type Strength } from '../report/trace';
 
 interface Props {
   layout: FlowLayout;
   graph: ReferenceGraph;
+  /** Which Routes each routed Source can reach, from its Route filters. */
+  reach: Map<string, RouteReach[]>;
 }
 
 const curve = (a: { x: number; y: number }, b: { x: number; y: number }) => {
@@ -18,57 +22,30 @@ const truncate = (s: string, max: number) => (s.length > max ? `${s.slice(0, max
 const ROW_CHARS = 30;
 const SUB_MAX = 12;
 
-/** Flow ids (route ids, QuickConnect source ids) that pass through a node. */
-function flowsThrough(node: LayoutNode, layout: FlowLayout, graph: ReferenceGraph): string[] {
-  switch (node.column) {
-    case 'route':
-      return [node.id];
-    case 'source': {
-      // A routed source's data reaches every route through the bus; a disabled one sends nothing.
-      const routed = layout.edges.some((e) => e.flows.includes(busFlow(node.id)));
-      const routes = routed && !node.disabled ? layout.nodes.filter((n) => n.column === 'route').map((n) => n.id) : [];
-      return [
-        ...(routed ? [busFlow(node.id)] : []),
-        ...routes,
-        ...graph.flows.filter((f) => f.kind === 'quickconnect' && f.via === node.id).map((f) => f.via),
-      ];
-    }
-    case 'pipeline':
-      return graph.flows.filter((f) => f.pipeline === node.id).map((f) => f.via);
-    case 'destination':
-      return graph.flows.filter((f) => f.output === node.id).map((f) => f.via);
-  }
-}
+export default function FlowDiagram({ layout, graph, reach }: Props) {
+  const [hovered, setHovered] = useState<LayoutNode | null>(null);
+  const trace = useMemo(() => (hovered ? traceHover(hovered, graph, reach) : null), [hovered, graph, reach]);
 
-export default function FlowDiagram({ layout, graph }: Props) {
-  const [hover, setHover] = useState<{ key: string; flows: Set<string> } | null>(null);
-  const hovered = hover?.flows ?? null;
-  const busLit = !!hovered && [...hovered].some((f) => f.startsWith(busFlow('')));
+  /** Lit state classes: dark when something else is hovered, dashed when the match depends on events. */
+  const litClass = (s: Strength | undefined) =>
+    trace && (s ? (s === 'maybe' ? 'is-lit is-maybe' : 'is-lit') : 'is-faded');
 
-  const litNodes = useMemo(() => {
-    if (!hover) return null;
-    // The hovered node stays lit even when no flow passes through it (an unreferenced object).
-    const keys = new Set<string>([hover.key]);
-    for (const f of graph.flows) {
-      if (!hover.flows.has(f.via)) continue;
-      keys.add(f.kind === 'route' ? `route:${f.via}` : `source:${f.via}`);
-      keys.add(`pipeline:${f.pipeline}`);
-      if (f.output) keys.add(`destination:${f.output}`);
-    }
-    return keys;
-  }, [hover, graph]);
+  const busStrength = trace
+    ? [...trace.flows].reduce<Strength | undefined>(
+        (best, [flow, s]) => (flow.startsWith(busFlow('')) ? stronger(best, s) : best),
+        undefined,
+      )
+    : undefined;
 
-  const edgeClass = (flows: string[], disabled: boolean, kind: string) => {
-    const lit = hovered && flows.some((f) => hovered.has(f));
-    return [
+  const edgeClass = (flows: string[], disabled: boolean, kind: string) =>
+    [
       'flow-edge',
       `flow-edge--${kind}`,
       disabled && 'is-disabled',
-      hovered && (lit ? 'is-lit' : 'is-faded'),
+      litClass(flows.reduce<Strength | undefined>((best, f) => stronger(best, trace?.flows.get(f)), undefined)),
     ]
       .filter(Boolean)
       .join(' ');
-  };
 
   return (
     <div className="flow-scroll">
@@ -87,7 +64,7 @@ export default function FlowDiagram({ layout, graph }: Props) {
         ))}
 
         {layout.bus && (
-          <g className={`flow-bus-group${hovered ? (busLit ? ' is-lit' : ' is-faded') : ''}`}>
+          <g className={['flow-bus-group', litClass(busStrength)].filter(Boolean).join(' ')}>
             <title>
               Routing table: events from these Sources are checked against Routes in order; the first matching
               Final Route stops evaluation.
@@ -107,14 +84,13 @@ export default function FlowDiagram({ layout, graph }: Props) {
         ))}
 
         {layout.nodes.map((n) => {
-          const lit = litNodes?.has(n.key);
           const cls = [
             'flow-node',
             `flow-node--${n.column}`,
             n.disabled && 'is-disabled',
             n.unreferenced && 'is-unreferenced',
             n.severity && `has-${n.severity}`,
-            litNodes && (lit ? 'is-lit' : 'is-faded'),
+            litClass(trace?.nodes.get(n.key)),
           ]
             .filter(Boolean)
             .join(' ');
@@ -123,8 +99,8 @@ export default function FlowDiagram({ layout, graph }: Props) {
               key={n.key}
               className={cls}
               transform={`translate(${n.x},${n.y})`}
-              onMouseEnter={() => setHover({ key: n.key, flows: new Set(flowsThrough(n, layout, graph)) })}
-              onMouseLeave={() => setHover(null)}
+              onMouseEnter={() => setHovered(n)}
+              onMouseLeave={() => setHovered(null)}
             >
               <title>
                 {`${n.label}${n.sublabel ? ` — ${n.sublabel}` : ''}${n.disabled ? ' (disabled)' : ''}${n.unreferenced ? ' (not referenced)' : ''}${n.findingCount ? ` · ${n.findingCount} finding${n.findingCount === 1 ? '' : 's'} (see Linter)` : ''}`}

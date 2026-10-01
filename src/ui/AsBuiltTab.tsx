@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Button, Table, Tag, Text, defineColumns } from '@capra/core';
 import type { ReferenceGraph } from '../model/graph';
 import type { Finding } from '../lint/types';
+import { routeReach } from '../model/reach';
 import type { Inventory } from '../model/types';
 import { buildAsBuilt, type DestinationRow, type PackRow, type PipelineRow, type RouteRow, type SourceRow } from '../report/asBuilt';
 import { layoutFlow } from '../report/flowLayout';
@@ -82,6 +83,7 @@ function Stat({ label, value, detail }: { label: string; value: number; detail?:
 export default function AsBuiltTab({ inventory, graph, findings, suppressed }: Props) {
   const report = useMemo(() => buildAsBuilt(inventory, graph), [inventory, graph]);
   const layout = useMemo(() => layoutFlow(inventory, graph, findings), [inventory, graph, findings]);
+  const reach = useMemo(() => routeReach(inventory), [inventory]);
   const s = report.summary;
 
   const exportMarkdown = () => {
@@ -113,9 +115,10 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed }: P
         <Text>
           Hover any Source, Route, Pipeline, or Destination to trace its path. Sources on the vertical Routing
           table line are evaluated against Routes top to bottom; QuickConnect Sources (dashed) go straight to a
-          Pipeline.
+          Pipeline. While tracing, Route filters decide which Sources reach which Routes: a solid line is a
+          definite match, a dashed one depends on event content.
         </Text>
-        <FlowDiagram layout={layout} graph={graph} />
+        <FlowDiagram layout={layout} graph={graph} reach={reach} />
         <div className="flow-legend">
           <span><span className="swatch swatch--error" /> Error</span>
           <span><span className="swatch swatch--warning" /> Warning</span>

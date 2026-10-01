@@ -29,6 +29,8 @@ export interface Source {
   sendToRoutes: boolean;
   /** QuickConnect links: Source -> Pipeline/Pack -> Destination, bypassing Routes. */
   connections: Connection[];
+  /** Fields the Source adds to every event; each value is a JS expression. Absent in older snapshots. */
+  metadata?: { name: string; value: string }[];
   description?: string;
 }
 

@@ -36,6 +36,10 @@ function normalizeSource(raw: unknown): Source {
     // Cribl omits sendToRoutes on older sources; it defaults to true unless QuickConnect is used.
     sendToRoutes: r.sendToRoutes === undefined ? connections.length === 0 : r.sendToRoutes !== false,
     connections,
+    metadata: arr(r.metadata)
+      .map(obj)
+      .filter((m) => str(m.name) && m.value !== undefined)
+      .map((m) => ({ name: str(m.name)!, value: String(m.value) })),
     description: str(r.description),
   };
 }

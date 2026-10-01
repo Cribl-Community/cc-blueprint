@@ -139,6 +139,15 @@
   stroke-width: 2.5;
 }
 
+.flow-edge.is-lit.is-maybe,
+.flow-bus-group.is-lit.is-maybe .flow-bus {
+  stroke-dasharray: 6 4;
+}
+
+.flow-node.is-lit.is-maybe rect {
+  stroke-dasharray: 5 3;
+}
+
 .flow-bus-group.is-lit .flow-bus {
   stroke: token('color.border.accent.strong');
 }

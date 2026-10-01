@@ -65,7 +65,7 @@ Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-co
 
 ### If The App Is Not Yet In The Cribl Marketplace
 1. Open the repository's **Releases** page.
-2. Download `cc-shunger-1.0.5.tgz` (or the version you want).
+2. Download `cc-shunger-1.0.6.tgz` (or the version you want).
 3. In Cribl, go to **Apps > Add App > Import from File**.
 4. Upload the `.tgz` file.
 5. Review the app details and complete installation. No other steps are needed.
@@ -82,7 +82,7 @@ Blueprint has no settings. It reads the Worker Groups the signed-in user can see
 
 ### Typical Workflow
 1. Open **Cribl Blueprint** from the Apps page and pick a Worker Group.
-2. **As-Built:** review the summary and diagram. Hover any Source, Route, Pipeline, or Destination to trace its path; the vertical Routing table line shows Sources whose events are evaluated against Routes in order. Click **Export Markdown** for the handoff document.
+2. **As-Built:** review the summary and diagram. Hover any Source, Route, Pipeline, or Destination to trace its path; the vertical Routing table line shows Sources whose events are evaluated against Routes in order. Tracing reads Route filters: a Source lights only the Routes it can reach (solid for a definite match, dashed when it depends on event content), and a Final Route that definitely matches stops it. Click **Export Markdown** for the handoff document.
 3. **Snapshots:** take a snapshot labelled, for example, "before".
 4. **Linter:** review findings, highest severity first.
    * Click an object to see its details.

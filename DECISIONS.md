@@ -86,3 +86,5 @@ One line per non-obvious choice. Sources: [Apps docs](https://docs.cribl.io/apps
 - `openapi.json` (9.9 MB, workspace-generated) is git-ignored; regenerate via the scaffold command.
 - `npm audit`: 2 moderate advisories in esbuild ≤0.24 nested under `@cribl/apps` (dev-server only, no upstream fix). Accepted.
 - App ID is `cc-shunger`, not `cc-blueprint`: Cribl-Community assigned the repo name, and the release workflow uploads to the dispensary under the repo name. Display name stays "Cribl Blueprint". An install under the new ID has its own empty KV store.
+- Route filters are analyzed with a small parser (`src/model/filter.ts`), never executed: yes, no, or maybe per Source. Only `__inputId` (`<type>:<id>`) and string-literal Source metadata count as known; anything unsupported is "maybe", so the analyzer can be incomplete but never claims a wrong yes or no.
+- `__inputId` is unknown for `cribl_http`/`cribl_tcp` Sources, which relay events from other Cribl nodes; Source metadata is ignored when a pre-processing pipeline could rewrite it.
