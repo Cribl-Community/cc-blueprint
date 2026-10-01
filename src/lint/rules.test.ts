@@ -13,6 +13,8 @@ import { L05 } from './rules/L05';
 import { L06 } from './rules/L06';
 import { L07, findSecret, mask } from './rules/L07';
 import { L08 } from './rules/L08';
+import { L09 } from './rules/L09';
+import { L10 } from './rules/L10';
 import { lint, runRule } from './runner';
 import type { Rule } from './types';
 
@@ -28,6 +30,73 @@ const fn = (id: string, conf: Record<string, unknown>, extra: Partial<PipelineFu
 describe('isCatchAll', () => {
   it.each(['true', ' true ', '(true)', '!false', '1', '', '((true))'])('matches %j', (f) => expect(isCatchAll(f)).toBe(true));
   it.each(["sourcetype=='x'", 'true && x', 'false', '0', 'truthy'])('rejects %j', (f) => expect(isCatchAll(f)).toBe(false));
+});
+
+describe('L09 route no source reaches', () => {
+  const sources = [source('gen_a'), source('gen_b')];
+
+  it('fires when the filter matches none of the routed sources', () => {
+    const inv = inventory({ sources, routes: [route(0, { filter: "__inputId=='datagen:gone'" }), route(1)] });
+    const [f] = runRule(L09, inv, buildGraph(inv));
+    expect(f.key).toBe('L09/route/r0');
+    expect(f.message).toContain('its filter matches none of the 2 Sources');
+    expect(f.fix).toContain('Check the filter');
+  });
+
+  it('fires when earlier Final routes take every source first, naming them', () => {
+    const inv = inventory({
+      sources,
+      routes: [
+        route(0, { filter: "__inputId=='datagen:gen_a'" }),
+        route(1, { filter: "__inputId=='datagen:gen_b'" }),
+        route(2, { filter: "host=='x'" }),
+        route(3),
+      ],
+    });
+    const [f] = runRule(L09, inv, buildGraph(inv));
+    expect(f.key).toBe('L09/route/r2');
+    expect(f.message).toBe(
+      'Route 3 "route2" receives events from no Source: route 1 "route0" takes gen_a first; route 2 "route1" takes gen_b first.',
+    );
+    expect(f.fix).toBe('Move "route2" above "route0", or narrow that route\'s filter.');
+  });
+
+  it('stays quiet for event-dependent filters, routes below a catch-all, and groups with no routed sources', () => {
+    expect(keys(L09, inventory({ sources, routes: [route(0, { filter: "host=='x'" }), route(1)] }))).toEqual([]);
+    // Below a Final catch-all: L01 reports it.
+    expect(keys(L09, inventory({ sources, routes: [route(0), route(1, { filter: "__inputId=='datagen:gen_a'" })] }))).toEqual([]);
+    expect(keys(L09, inventory({ routes: [route(0, { filter: 'false' }), route(1)] }))).toEqual([]);
+    expect(keys(L09, inventory({ sources, routes: [route(0, { filter: 'false', disabled: true }), route(1)] }))).toEqual([]);
+  });
+});
+
+describe('L10 targeted source never reaches its route', () => {
+  const sources = [source('gen_a'), source('gen_b'), source('web', { type: 'http' })];
+
+  it('fires when a route written for a source sits below a Final route that takes it', () => {
+    const inv = inventory({
+      sources,
+      routes: [
+        route(0, { filter: "__inputId=='datagen:gen_a'" }),
+        route(1, { filter: "__inputId.startsWith('datagen:')" }),
+        route(2),
+      ],
+    });
+    const [f] = runRule(L10, inv, buildGraph(inv));
+    expect(f.key).toBe('L10/route/r1');
+    expect(f.message).toBe('Route 2 "route1" matches gen_a, but route 1 "route0" is Final and takes its events first.');
+    expect(f.fix).toBe('Move "route1" above "route0", or turn off Final on "route0".');
+  });
+
+  it('stays quiet when the earlier route is not Final, or the later filter matches every source', () => {
+    const routes = (first: Partial<Parameters<typeof route>[1]>, filter: string) => [
+      route(0, { filter: "__inputId=='datagen:gen_a'", ...first }),
+      route(1, { filter }),
+      route(2),
+    ];
+    expect(keys(L10, inventory({ sources, routes: routes({ final: false }, "__inputId.startsWith('datagen:')") }))).toEqual([]);
+    expect(keys(L10, inventory({ sources, routes: routes({}, "__inputId.includes(':')") }))).toEqual([]);
+  });
 });
 
 describe('L01 route shadowing', () => {

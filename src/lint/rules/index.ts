@@ -7,5 +7,7 @@ import { L05 } from './L05';
 import { L06 } from './L06';
 import { L07 } from './L07';
 import { L08 } from './L08';
+import { L09 } from './L09';
+import { L10 } from './L10';
 
-export const RULES: Rule[] = [L01, L02, L03, L04, L05, L06, L07, L08];
+export const RULES: Rule[] = [L01, L02, L03, L04, L05, L06, L07, L08, L09, L10];

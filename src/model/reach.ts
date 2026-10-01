@@ -11,6 +11,10 @@ export interface RouteReach {
   state: ReachState;
   /** This route definitely takes every event from the Source (Final and a definite match). */
   stops: boolean;
+  /** The filter's verdict for this Source, even when the route is unreached; absent when disabled. */
+  filter?: Tri;
+  /** For an unreached route: the route that stopped this Source first. */
+  stoppedBy?: string;
 }
 
 /**
@@ -36,16 +40,16 @@ export function knownFields(source: Source): KnownFields {
 /** Route reach for one Source, in Routing table order. */
 export function reachFor(source: Source, inv: Inventory): RouteReach[] {
   const fields = knownFields(source);
-  let stopped = false;
+  let stoppedBy: string | undefined;
   return [...inv.routes]
     .sort((a, b) => a.index - b.index)
-    .map((route) => {
+    .map((route): RouteReach => {
       if (route.disabled) return { routeId: route.id, state: 'disabled', stops: false };
-      if (stopped) return { routeId: route.id, state: 'unreached', stops: false };
-      const state = evalFilter(route.filter, fields);
-      const stops = state === 'yes' && route.final;
-      stopped ||= stops;
-      return { routeId: route.id, state, stops };
+      const filter = evalFilter(route.filter, fields);
+      if (stoppedBy) return { routeId: route.id, state: 'unreached', stops: false, filter, stoppedBy };
+      const stops = filter === 'yes' && route.final;
+      if (stops) stoppedBy = route.id;
+      return { routeId: route.id, state: filter, stops, filter };
     });
 }
 

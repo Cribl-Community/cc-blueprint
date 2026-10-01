@@ -13,6 +13,22 @@ export function isCatchAll(filter: string): boolean {
 
 export const isActive = (r: Route) => !r.disabled;
 
+/** Enabled routes above the first Final catch-all; routes below it are L01's to report. */
+export function routesAboveCatchAll(routes: Route[]): Route[] {
+  const active = routes.filter(isActive);
+  const catchAll = active.find((r) => r.final && isCatchAll(r.filter));
+  return active.filter((r) => !catchAll || r.index < catchAll.index);
+}
+
+/** `a, b, c and 2 more` */
+export function listNames(names: string[], max = 5): string {
+  const more = names.length > max ? ` and ${names.length - max} more` : '';
+  return names.slice(0, max).join(', ') + more;
+}
+
+/** `2 "catch_all"`, a route as messages refer to it. */
+export const routeLabel = (r: Route) => `${r.index + 1} "${r.name}"`;
+
 /** Pipelines that are real (not pack references). */
 export const realPipelines = (pipelines: Pipeline[]) => pipelines.filter((p) => !p.packId);
 

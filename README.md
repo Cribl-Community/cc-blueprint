@@ -16,7 +16,7 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
     * A Source → Route → Pipeline → Destination diagram that shows QuickConnect paths. Each object is outlined by its worst lint finding.
     * A Source × Route reach matrix read from the Route filters (never executed): which Routes each Source's events can reach, where a Final Route stops them, and which Routes no Source reaches.
     * One-click Markdown export: a handoff document with a Mermaid flowchart, every table, and the findings.
-  * **Linter.** Eight rules with severity, evidence, and a one-line fix. Findings can be suppressed with a reason, and suppressions persist for the whole team.
+  * **Linter.** Ten rules with severity, evidence, and a one-line fix. Findings can be suppressed with a reason, and suppressions persist for the whole team.
   * **L01 fix-it.** Reorders a shadowing route after a before/after preview and explicit confirmation. The change is left uncommitted for review.
   * **Snapshots.** Labelled point-in-time captures. Compare any two, or a snapshot against the current config, with route-order and field-level changes.
 * Intended users: Cribl admins, platform owners, consultants.
@@ -34,6 +34,8 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
 | L06 | Pipeline does nothing (no functions, or all disabled) | Info |
 | L07 | Possible hardcoded secret in a pipeline function; evidence shows at most 4 characters | Error |
 | L08 | Regex starts with an unanchored `.*` | Info |
+| L09 | Route no Source reaches: every routed Source fails its filter or is taken by an earlier Final Route (read from the filters, never executed) | Warning |
+| L10 | A Route's filter targets a specific Source, but an earlier Final Route takes that Source's events first | Warning |
 
 Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-configquest-for-cribl). Config Quest is a read-only browser and hygiene checker across groups. Blueprint focuses on the handoff document, risk rules, recorded suppressions, labelled snapshot diffs, and a confirmed fix-it.
 
@@ -66,7 +68,7 @@ Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-co
 
 ### If The App Is Not Yet In The Cribl Marketplace
 1. Open the repository's **Releases** page.
-2. Download `cc-shunger-1.0.7.tgz` (or the version you want).
+2. Download `cc-shunger-1.0.8.tgz` (or the version you want).
 3. In Cribl, go to **Apps > Add App > Import from File**.
 4. Upload the `.tgz` file.
 5. Review the app details and complete installation. No other steps are needed.
@@ -161,6 +163,8 @@ This app is built by Steve Hunger (Presidio) for the CriblCon 2026 App Hackathon
 
 * Stream Worker Groups only. Edge Fleets and Search are out of scope.
 * Collector jobs are not read, so a pipeline used only by a Collector is reported as an orphan (L03). The fix text says so.
+* For the same reason, a Route fed only by a Collector is reported as reached by no Source (L09) and shows no reach in the matrix. Suppress the finding with that reason.
+* Route reach is read from filters without running them. Only `__inputId` and literal Source metadata fields are known; filters on event content show as "maybe", and `__inputId` is treated as unknown for `cribl_http`/`cribl_tcp` Sources, which relay events from other Cribl nodes.
 * L04 stands down entirely when any enabled route uses an output expression, since any destination could be chosen at runtime. The Linter tab explains why.
 * Routes inside packs are not analyzed; packs appear as pack references.
 * L07 is a heuristic. It can miss secrets, and it can flag random-looking literals that aren't secrets. Suppress false positives with a reason.
