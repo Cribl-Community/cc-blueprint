@@ -14,9 +14,9 @@ The definition lives in [`seed.ts`](./seed.ts). The same data is the "bad" fixtu
 
 ## 2. Seed it (Blueprint Live Preview)
 
-1. In the demo workspace, open **Apps > Create App**, use the App ID `cc-shunger`, and start **Live Preview**.
+1. In the demo workspace, open **Apps > Create App**, use the App ID `cc-blueprint`, and start **Live Preview**.
 2. Restart `npm run dev` first if it was last used with another workspace or org.
-   - If the app loads but shows `Unknown App "__dev__cc-shunger"`, the Cribl page didn't register the dev app. Hard-refresh the Live Preview page (Cmd+Shift+R). Use a separate browser profile rather than a private window, which can block Local Network Access.
+   - If the app loads but shows `Unknown App "__dev__cc-blueprint"`, the Cribl page didn't register the dev app. Hard-refresh the Live Preview page (Cmd+Shift+R). Use a separate browser profile rather than a private window, which can block Local Network Access.
 3. Pick `default`, click **Show dev tools**, then **Seed default**, then **Confirm**.
 
 The seeder:

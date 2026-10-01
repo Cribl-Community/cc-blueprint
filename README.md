@@ -68,7 +68,7 @@ Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-co
 
 ### If The App Is Not Yet In The Cribl Marketplace
 1. Open the repository's **Releases** page.
-2. Download `cc-shunger-1.0.8.tgz` (or the version you want).
+2. Download `cc-blueprint-1.0.8.tgz` (or the version you want).
 3. In Cribl, go to **Apps > Add App > Import from File**.
 4. Upload the `.tgz` file.
 5. Review the app details and complete installation. No other steps are needed.
@@ -124,8 +124,8 @@ Every API call runs as the signed-in user, with that user's own Cribl permission
 | GET | `/api/v1/m/{group}/system/outputs` | Destinations, backpressure settings, and the `default` alias |
 | GET | `/api/v1/m/{group}/packs` | Installed packs |
 | PATCH | `/api/v1/m/{group}/routes/{id}` | L01 fix-it only: write the reordered Routing table after confirmation |
-| GET, PUT, DELETE | `/api/v1/a/cc-shunger/kvstore/*` | App-scoped KV store for snapshots and suppressions (granted automatically) |
-| POST | `/api/v1/a/cc-shunger/kvstore/keys` | List snapshot keys by prefix |
+| GET, PUT, DELETE | `/api/v1/a/cc-blueprint/kvstore/*` | App-scoped KV store for snapshots and suppressions (granted automatically) |
+| POST | `/api/v1/a/cc-blueprint/kvstore/keys` | List snapshot keys by prefix |
 
 ## External API Access
 
@@ -181,15 +181,15 @@ This app is built by Steve Hunger (Presidio) for the CriblCon 2026 App Hackathon
 Blueprint only calls the Cribl API of the workspace it runs in. If every call fails, check that Apps are enabled (**Settings > Global Settings > App Settings**) and that the app is shared with the user.
 
 ### The App Works Locally But Not In Cribl
-Live Preview uses the developer's session and a separate KV store (`__dev__cc-shunger`). An installed app only gets the paths declared in `config/policies.yml`, so a new API call must be added there too.
+Live Preview uses the developer's session and a separate KV store (`__dev__cc-blueprint`). An installed app only gets the paths declared in `config/policies.yml`, so a new API call must be added there too.
 
 ## Development
 
 ```bash
 npm install
-npm run dev        # then open Apps > Create App > Live Preview (App ID cc-shunger) in Cribl
+npm run dev        # then open Apps > Create App > Live Preview (App ID cc-blueprint) in Cribl
 npm test           # unit tests: model, rules, report, diff, store, fix-it
-npm run package    # build/cc-shunger-<version>.tgz
+npm run package    # build/cc-blueprint-<version>.tgz
 ```
 
 * The rule engine, report builder, diff, and fix planner are pure TypeScript with no Cribl calls. They are tested offline against sanitized fixtures from real workspaces (`test/fixtures/`).
@@ -246,12 +246,12 @@ Use this table as the canonical source for gallery fields. Keep the left column 
 | Field | Value |
 |---|---|
 | App Name | Cribl Blueprint |
-| App ID | cc-shunger |
+| App ID | cc-blueprint |
 | Version | 1.0.1 |
 | Author | Steve Hunger (Presidio) |
 | Support Model | partner-built |
 | Support Label | Partner Built |
-| Support Contact | https://github.com/Cribl-Community/cc-shunger/issues |
+| Support Contact | https://github.com/Cribl-Community/cc-blueprint/issues |
 | License | Apache-2.0 |
 | License File | [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
 | Product Tags | stream |
@@ -259,6 +259,6 @@ Use this table as the canonical source for gallery fields. Keep the left column 
 | Audience | admin, platform-owner |
 | Availability | preview |
 | Requires External Access | no |
-| Repository | https://github.com/Cribl-Community/cc-shunger |
-| Documentation | https://github.com/Cribl-Community/cc-shunger#readme |
+| Repository | https://github.com/Cribl-Community/cc-blueprint |
+| Documentation | https://github.com/Cribl-Community/cc-blueprint#readme |
 | README Schema Version | 1.0 |
