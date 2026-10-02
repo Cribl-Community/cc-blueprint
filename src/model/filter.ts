@@ -66,9 +66,10 @@ function tokenize(src: string): Tok[] {
       toks.push({ k: 'id', v: m[0] });
       i += m[0].length;
     } else if (c === '/' && operandExpected()) {
-      const m = /^\/((?:\\.|[^/\\\n])+)\/([gimsuy]*)/.exec(src.slice(i));
+      // Body: escapes, character classes (which may contain an unescaped `/`), or any other char.
+      const m = /^\/((?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\n[])+)\/([dgimsuy]*)/.exec(src.slice(i));
       if (!m) throw new Unsupported('bad regex');
-      toks.push({ k: 're', v: new RegExp(m[1], m[2].replace('g', '')) });
+      toks.push({ k: 're', v: new RegExp(m[1], m[2].replace(/[gy]/g, '')) });
       i += m[0].length;
     } else {
       const op = OPS.find((o) => src.startsWith(o, i));
@@ -232,14 +233,13 @@ function evaluate(n: Node, fields: KnownFields): Value {
 
 /** Can events carrying `fields` match `filter`? Unparseable or unsupported filters are "maybe". */
 export function evalFilter(filter: string, fields: KnownFields): Tri {
-  let node: Node;
+  // Never throws: this runs while the app renders, so any surprise (an unsupported regex flag, a
+  // pattern this engine rejects) degrades to "maybe" instead of taking the page down.
   try {
-    node = parse(filter.trim() === '' ? 'true' : filter);
-  } catch (e) {
-    if (e instanceof Unsupported) return 'maybe';
-    throw e;
+    return truth(evaluate(parse(filter.trim() === '' ? 'true' : filter), fields));
+  } catch {
+    return 'maybe';
   }
-  return truth(evaluate(node, fields));
 }
 
 /** The value of a constant expression (a string literal), or undefined if it isn't one. */

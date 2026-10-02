@@ -647,3 +647,20 @@
 .reach--disabled {
   color: token('color.foreground.subtle');
 }
+
+/* Render error fallback */
+.app-error {
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.md');
+  padding: token('spacing.xl');
+}
+
+.app-error-detail {
+  overflow-x: auto;
+  padding: token('spacing.md');
+  border-radius: token('radius.md');
+  background: token('color.background.neutral.surface');
+  font: token('typography.code');
+  white-space: pre-wrap;
+}

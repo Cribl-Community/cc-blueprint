@@ -42,6 +42,19 @@ describe('evalFilter', () => {
     expect(evalFilter("__inputId.match(/syslog/)", syslog)).toBe('maybe');
   });
 
+  it('reads regex literals with a / inside a character class', () => {
+    expect(evalFilter('/^syslog:[^/]+$/.test(__inputId)', syslog)).toBe('yes');
+    expect(evalFilter('/a[/]b/.test(__inputId)', syslog)).toBe('no');
+    expect(evalFilter('/[^/]+/.test(uri)', syslog)).toBe('maybe');
+  });
+
+  it('never throws, even on patterns it cannot compile', () => {
+    for (const f of ['/(/.test(host)', '/a/zz.test(host)', '/[/', ')', '((', "'"]) {
+      expect(() => evalFilter(f, syslog)).not.toThrow();
+      expect(evalFilter(f, syslog)).toBe('maybe');
+    }
+  });
+
   it('does not execute the filter', () => {
     let called = false;
     (globalThis as Record<string, unknown>).__probe = () => (called = true);

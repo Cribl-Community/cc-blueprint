@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import App from './App';
+import ErrorBoundary from './ui/ErrorBoundary';
 import { installThemeBridge, type HostTheme } from './host-theme';
 import { ThemeContext } from './ui/theme';
 
@@ -11,7 +12,9 @@ export default function Root() {
   useEffect(() => installThemeBridge(setTheme), []);
   return (
     <ThemeContext.Provider value={theme}>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </ThemeContext.Provider>
   );
 }
