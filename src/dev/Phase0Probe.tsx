@@ -43,6 +43,51 @@ async function dumpGroup(group: string, log: Log) {
   log(`Downloaded blueprint-raw-${group}.json`);
 }
 
+async function postJson(path: string, body: unknown): Promise<{ status: number; body: unknown }> {
+  const res = await fetch(`${window.CRIBL_API_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  try {
+    return { status: res.status, body: JSON.parse(text) };
+  } catch {
+    return { status: res.status, body: text };
+  }
+}
+
+/** Captures live status and metrics responses so throughput/health can be designed against real data. */
+async function probeLive(group: string, log: Log) {
+  const g = `/m/${encodeURIComponent(group)}`;
+  const metricsQs = `earliest=-1h&numBuckets=1&metricNameFilter=${encodeURIComponent('(total|route)\\.(in|out)_events')}`;
+  const gets = [
+    `${g}/system/status/inputs?metrics=true`,
+    `${g}/system/status/outputs?metrics=true`,
+    `/system/status/inputs?metrics=true`,
+    `${g}/system/metrics?${metricsQs}`,
+    `/system/metrics?${metricsQs}`,
+  ];
+  const out: Record<string, unknown> = { group, capturedAt: new Date().toISOString() };
+  for (const path of gets) {
+    const r = await getJson(path);
+    log(`GET ${path} -> ${r.status}`);
+    out[`GET ${path}`] = r;
+  }
+  const query = {
+    earliest: '-1h',
+    latest: 'now',
+    aggs: { aggregations: ['sum("total.in_events").as("in_events")'], splitBys: ['input'], cumulative: true, timeWindowSeconds: 3600 },
+  };
+  for (const path of [`${g}/system/metrics/query`, '/system/metrics/query']) {
+    const r = await postJson(path, query);
+    log(`POST ${path} -> ${r.status}`);
+    out[`POST ${path}`] = r;
+  }
+  download(`blueprint-live-${group}.json`, out);
+  log(`Downloaded blueprint-live-${group}.json`);
+}
+
 async function kvStatus(method: string, key: string, body?: string, contentType = 'text/plain') {
   const res = await fetch(`${window.CRIBL_API_URL}/kvstore/${key}`, {
     method,
@@ -167,6 +212,9 @@ export default function Phase0Probe() {
       <div style={{ display: 'flex', gap: 8 }}>
         <Button variant="primary" disabled={!group || busy} onClick={run(() => dumpGroup(group, log))}>
           Download raw config
+        </Button>
+        <Button disabled={!group || busy} onClick={run(() => probeLive(group, log))}>
+          Probe live status and metrics
         </Button>
         <Button disabled={busy} onClick={run(() => probeKv(log))}>
           Run KV probe
