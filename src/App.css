@@ -27,6 +27,11 @@
   gap: token('spacing.md');
 }
 
+/* Wide enough that group and fleet names fit in the trigger and its menu. */
+.group-picker {
+  min-width: 18rem;
+}
+
 .app-footer {
   padding: 0 token('spacing.xl') token('spacing.lg');
   font: token('typography.body.xs.normal');
