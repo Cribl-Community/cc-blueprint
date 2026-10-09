@@ -1,4 +1,5 @@
 // Inventory x Inventory -> ChangeSet. Objects are matched by id; routes also report moves.
+import { routeReach, type ReachState } from '../model/reach';
 import type { Destination, Inventory, Pack, Pipeline, Route, Source } from '../model/types';
 
 export type DiffKind = 'routes' | 'pipelines' | 'sources' | 'destinations' | 'packs';
@@ -21,10 +22,29 @@ export interface KindDiff {
   changed: ObjectChange[];
 }
 
+export interface RouteReachDelta {
+  routeId: string;
+  /** `<position>. <name>` in the after snapshot. */
+  label: string;
+  before: ReachState;
+  after: ReachState;
+}
+
+/** How one Source's reach changed; only routes present in both snapshots are compared. */
+export interface ReachChange {
+  sourceId: string;
+  gained: RouteReachDelta[];
+  lost: RouteReachDelta[];
+  /** Still reached, but a definite match became event-dependent or the reverse. */
+  changed: RouteReachDelta[];
+}
+
 export interface ChangeSet {
   kinds: Record<DiffKind, KindDiff>;
   /** Route ids in evaluation order before and after, when the order changed. */
   routeOrder?: { before: string[]; after: string[] };
+  /** Sources whose reachable routes changed, from the Route filters. */
+  reach: ReachChange[];
   total: number;
 }
 
@@ -118,6 +138,32 @@ const PACK_FIELDS: [string, (p: Pack) => unknown][] = [
   ['name', (p) => p.displayName],
 ];
 
+const reachable = (s: ReachState) => s === 'yes' || s === 'maybe';
+
+/** Per-Source reach changes, for Sources that use the Routing table in both snapshots. */
+export function diffReach(before: Inventory, after: Inventory): ReachChange[] {
+  const a = routeReach(before);
+  const b = routeReach(after);
+  const routeLabel = new Map(after.routes.map((r) => [r.id, `${r.index + 1}. ${r.name}`]));
+  const out: ReachChange[] = [];
+  for (const [sourceId, afterRoutes] of b) {
+    const beforeRoutes = a.get(sourceId);
+    if (!beforeRoutes) continue;
+    const beforeState = new Map(beforeRoutes.map((r) => [r.routeId, r.state]));
+    const change: ReachChange = { sourceId, gained: [], lost: [], changed: [] };
+    for (const r of afterRoutes) {
+      const was = beforeState.get(r.routeId);
+      if (was === undefined || was === r.state) continue;
+      const delta = { routeId: r.routeId, label: routeLabel.get(r.routeId) ?? r.routeId, before: was, after: r.state };
+      if (!reachable(was) && reachable(r.state)) change.gained.push(delta);
+      else if (reachable(was) && !reachable(r.state)) change.lost.push(delta);
+      else if (reachable(was) && reachable(r.state)) change.changed.push(delta);
+    }
+    if (change.gained.length || change.lost.length || change.changed.length) out.push(change);
+  }
+  return out;
+}
+
 export function diffInventory(before: Inventory, after: Inventory): ChangeSet {
   const realA = before.pipelines.filter((p) => !p.packId);
   const realB = after.pipelines.filter((p) => !p.packId);
@@ -132,5 +178,5 @@ export function diffInventory(before: Inventory, after: Inventory): ChangeSet {
   const orderB = after.routes.map((r) => r.id);
   const routeOrder = orderA.join('\n') === orderB.join('\n') ? undefined : { before: orderA, after: orderB };
   const total = Object.values(kinds).reduce((n, k) => n + k.added.length + k.removed.length + k.changed.length, 0);
-  return { kinds, routeOrder, total };
+  return { kinds, routeOrder, reach: diffReach(before, after), total };
 }

@@ -1,5 +1,6 @@
 import { Tag, Text } from '@capra/core';
-import type { ChangeSet, DiffKind } from '../diff/diff';
+import type { ChangeSet, DiffKind, ReachChange, RouteReachDelta } from '../diff/diff';
+import type { ReachState } from '../model/reach';
 import type { Inventory } from '../model/types';
 
 interface Props {
@@ -36,10 +37,62 @@ function RouteOrder({ ids, inv, title, moved }: { ids: string[]; inv: Inventory;
   );
 }
 
+const REACH_STATE: Record<ReachState, string> = {
+  yes: 'definite match',
+  maybe: 'depends on event content',
+  no: 'filter no longer matches',
+  unreached: 'taken by an earlier Final route',
+  disabled: 'route disabled',
+};
+
+const deltaList = (deltas: RouteReachDelta[], why: (d: RouteReachDelta) => string) =>
+  deltas.map((d) => `${d.label} (${why(d)})`).join(', ');
+
+function ReachChanges({ reach }: { reach: ReachChange[] }) {
+  return (
+    <section className="section">
+      <Text as="h3" variant="heading">Reach changes</Text>
+      {reach.length === 0 ? (
+        <Text>No Source gained or lost a Route. Read from the Route filters, so event-dependent filters count as reachable.</Text>
+      ) : (
+        <ul className="diff-list">
+          {reach.map((c) => (
+            <li key={c.sourceId}>
+              <strong>{c.sourceId}</strong>
+              <ul className="reach-deltas">
+                {c.gained.length > 0 && (
+                  <li>
+                    <Tag color="success">Now reaches</Tag> {deltaList(c.gained, (d) => REACH_STATE[d.after])}
+                  </li>
+                )}
+                {c.lost.length > 0 && (
+                  <li>
+                    <Tag color="danger">No longer reaches</Tag> {deltaList(c.lost, (d) => REACH_STATE[d.after])}
+                  </li>
+                )}
+                {c.changed.length > 0 && (
+                  <li>
+                    <Tag color="warning">Match changed</Tag>{' '}
+                    {deltaList(c.changed, (d) => `${REACH_STATE[d.before]} → ${REACH_STATE[d.after]}`)}
+                  </li>
+                )}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export default function DiffView({ diff, before, after, beforeLabel, afterLabel }: Props) {
   if (diff.total === 0 && !diff.routeOrder) {
     return <Text>{`No differences between ${beforeLabel} and ${afterLabel}.`}</Text>;
   }
+  const touched = (k: DiffKind) =>
+    diff.kinds[k].added.length + diff.kinds[k].removed.length + diff.kinds[k].changed.length > 0;
+  // Reach can only move when Routes or Sources changed; then "no change" is worth saying too.
+  const routingChanged = !!diff.routeOrder || touched('routes') || touched('sources');
   const moved = new Set(
     diff.routeOrder ? diff.routeOrder.after.filter((id, i) => diff.routeOrder!.before.indexOf(id) !== i) : [],
   );
@@ -70,6 +123,8 @@ export default function DiffView({ diff, before, after, beforeLabel, afterLabel 
           </div>
         </section>
       )}
+
+      {(routingChanged || diff.reach.length > 0) && <ReachChanges reach={diff.reach} />}
 
       {KINDS.map(({ key, title }) => {
         const k = diff.kinds[key];

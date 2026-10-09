@@ -670,3 +670,12 @@
   font: token('typography.code');
   white-space: pre-wrap;
 }
+
+.reach-deltas {
+  margin: token('spacing.xs') 0 0;
+  padding-left: token('spacing.lg');
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: token('spacing.xs');
+}

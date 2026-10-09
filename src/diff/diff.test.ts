@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { demoRaw, destination, inventory, pipeline, route } from '../../test/inventory';
+import { demoRaw, destination, inventory, pipeline, route, source } from '../../test/inventory';
 import { normalize } from '../model/normalize';
 import { planL01Fix } from '../fix/l01';
-import { diffInventory } from './diff';
+import { diffInventory, diffReach } from './diff';
 
 describe('diffInventory', () => {
   const before = inventory({
@@ -53,5 +53,34 @@ describe('diffInventory', () => {
     expect(diffInventory(a, b).kinds.destinations.changed[0].fields).toEqual([
       { field: 'backpressure', before: 'drop', after: 'queue' },
     ]);
+  });
+});
+
+describe('diffReach', () => {
+  it('shows what the L01 fix changes for each source', () => {
+    const inv = normalize(demoRaw());
+    const plan = planL01Fix(inv.routes, 'catch_all_early')!;
+    const [change, ...rest] = diffReach(inv, { ...inv, routes: plan.after });
+    expect(rest).toEqual([]); // gen_web stops at route 1 either way
+    expect(change.sourceId).toBe('gen_auth');
+    expect(change.gained.map((d) => d.label)).toEqual(['2. auth_to_splunk', '3. auth_parse']);
+    expect(change.lost.map((d) => `${d.label}: ${d.before}→${d.after}`)).toEqual(['5. catch_all_early: yes→unreached']);
+  });
+
+  it('reports a match that became event-dependent, and ignores routes only one side has', () => {
+    const sources = [source('gen_a')];
+    const before = inventory({ sources, routes: [route(0, { filter: "__inputId=='datagen:gen_a'", final: false }), route(1)] });
+    const after = inventory({
+      sources,
+      routes: [route(0, { filter: "host=='x'", final: false }), route(1), route(2, { filter: 'new' })],
+    });
+    const [change] = diffReach(before, after);
+    expect(change.changed.map((d) => `${d.label}: ${d.before}→${d.after}`)).toEqual(['1. route0: yes→maybe']);
+    expect(change.gained).toEqual([]);
+  });
+
+  it('is empty when routing is unchanged', () => {
+    const inv = normalize(demoRaw());
+    expect(diffReach(inv, inv)).toEqual([]);
   });
 });
