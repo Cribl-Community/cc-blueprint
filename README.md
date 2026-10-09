@@ -15,7 +15,9 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
   * **As-Built.** Inventory of Sources, Routes (in evaluation order), Pipelines, Destinations, and Packs.
     * A Source → Route → Pipeline → Destination diagram that shows QuickConnect paths. Each object is outlined by its worst lint finding.
     * A Source × Route reach matrix read from the Route filters (never executed): which Routes each Source's events can reach, where a Final Route stops them, and which Routes no Source reaches.
+    * A Source → Destination matrix: where each Source's data ends up, following Routes, QuickConnect, the default alias, and Output Router rules.
     * One-click Markdown export: a handoff document with a Mermaid flowchart, every table, and the findings.
+  * **Change review.** Snapshot diffs and the L01 fix-it preview show, per Source, which Routes it gains or loses.
   * **Linter.** Ten rules with severity, evidence, and a one-line fix. Findings can be suppressed with a reason, and suppressions persist for the whole team.
   * **L01 fix-it.** Reorders a shadowing route after a before/after preview and explicit confirmation. The change is left uncommitted for review.
   * **Snapshots.** Labelled point-in-time captures. Compare any two, or a snapshot against the current config, with route-order and field-level changes.

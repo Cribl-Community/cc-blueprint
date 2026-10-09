@@ -3,7 +3,16 @@
 import type { Flow } from '../model/graph';
 import type { Finding } from '../lint/types';
 import type { Suppression } from '../store/suppressions';
-import { REACH_LEGEND, reachLabel, unreachedRoutes, type AsBuilt } from './asBuilt';
+import {
+  DELIVERY_LEGEND,
+  deliveryLabel,
+  destinationHeader,
+  REACH_LEGEND,
+  reachLabel,
+  undelivered,
+  unreachedRoutes,
+  type AsBuilt,
+} from './asBuilt';
 
 /**
  * Makes a value safe inside a Markdown table cell. Only `|` is escaped: GFM honors `\|` even
@@ -149,6 +158,28 @@ function reachSection(report: AsBuilt): string[] {
   return out;
 }
 
+function deliverySection(report: AsBuilt): string[] {
+  const m = report.delivery;
+  if (!m.rows.length) return [];
+  const out = ['## Source → Destination', ''];
+  out.push('Where each enabled Source\'s data ends up, read from Route and Output Router filters (never executed).');
+  out.push('');
+  out.push(
+    table(
+      ['Source', ...m.destinations.map((d) => cell(destinationHeader(d)))],
+      m.rows.map((row) => [cell(row.sourceId), ...row.cells.map(deliveryLabel)]),
+    ),
+  );
+  out.push(DELIVERY_LEGEND);
+  out.push('');
+  const none = undelivered(m);
+  if (none.length) {
+    out.push(`**Reaches no Destination:** ${none.map(cell).join(', ')}`);
+    out.push('');
+  }
+  return out;
+}
+
 export function toMarkdown(
   report: AsBuilt,
   flows: Flow[],
@@ -207,6 +238,7 @@ export function toMarkdown(
     ),
   );
   out.push(...reachSection(report));
+  out.push(...deliverySection(report));
   out.push('## Sources');
   out.push('');
   out.push(

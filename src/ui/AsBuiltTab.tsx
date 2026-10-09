@@ -2,10 +2,16 @@ import { useMemo } from 'react';
 import { Button, Table, Tag, Text, defineColumns } from '@capra/core';
 import type { ReferenceGraph } from '../model/graph';
 import type { Finding } from '../lint/types';
+import type { Delivery } from '../model/delivery';
 import { routeReach } from '../model/reach';
 import type { Inventory } from '../model/types';
 import {
   buildAsBuilt,
+  DELIVERY_LEGEND,
+  deliveryLabel,
+  destinationHeader,
+  undelivered,
+  type DeliveryMatrix,
   REACH_LEGEND,
   reachLabel,
   unreachedRoutes,
@@ -138,6 +144,58 @@ function ReachTable({ matrix }: { matrix: ReachMatrix }) {
   );
 }
 
+type DeliveryItem = { id: string; source: string; [dest: `d:${string}`]: Delivery | undefined };
+
+function DeliveryTable({ matrix }: { matrix: DeliveryMatrix }) {
+  const columns = useMemo(
+    () =>
+      defineColumns<DeliveryItem>([
+        { id: 'source', label: 'Source' },
+        ...matrix.destinations.map((d) => ({
+          id: `d:${d.id}` as const,
+          label: destinationHeader(d),
+          render: (c: Delivery | undefined) => (
+            <span
+              className={`reach reach--${!c ? 'no' : c.strength}`}
+              title={c ? `${c.strength === 'yes' ? 'Arrives' : 'May arrive, depending on event content'} via ${c.via.join(', ')}` : 'Nothing arrives'}
+            >
+              {deliveryLabel(c)}
+            </span>
+          ),
+        })),
+      ]),
+    [matrix],
+  );
+  const items = matrix.rows.map((row) => ({
+    id: row.sourceId,
+    source: row.mode === 'QuickConnect' ? `${row.sourceId} (QuickConnect)` : row.sourceId,
+    ...Object.fromEntries(row.cells.map((c, i) => [`d:${matrix.destinations[i].id}`, c])),
+  })) as DeliveryItem[];
+  const none = undelivered(matrix);
+  return (
+    <>
+      <Text>
+        Where each enabled Source&apos;s data ends up, following Routes, QuickConnect, the default alias, and Output Router
+        rules. Hover a cell to see the path.
+      </Text>
+      <div className="reach-scroll">
+        <Table
+          items={items}
+          columns={columns}
+          visibleColumns={['source', ...matrix.destinations.map((d) => `d:${d.id}` as const)]}
+          density="compact"
+        />
+      </div>
+      <Text variant="body-sm-normal">{DELIVERY_LEGEND}</Text>
+      {none.length > 0 && (
+        <Text>
+          <strong>Reaches no Destination:</strong> {none.join(', ')}
+        </Text>
+      )}
+    </>
+  );
+}
+
 function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return (
     <section className="section">
@@ -221,6 +279,11 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed }: P
       {report.reach.rows.length > 0 && report.reach.routes.length > 0 && (
         <Section title="Source × Route reach" count={report.reach.rows.length}>
           <ReachTable matrix={report.reach} />
+        </Section>
+      )}
+      {report.delivery.rows.length > 0 && (
+        <Section title="Source → Destination" count={report.delivery.rows.length}>
+          <DeliveryTable matrix={report.delivery} />
         </Section>
       )}
       <Section title="Sources" count={report.sources.length}>

@@ -1,5 +1,6 @@
 // Inventory -> As-Built view model. Pure: shared by the As-Built tab and the Markdown export.
 import type { ReferenceGraph, Ref } from '../model/graph';
+import { deliveries, EXPRESSION_OUTPUT, type Delivery } from '../model/delivery';
 import { routeReach, type ReachState } from '../model/reach';
 import type { Inventory } from '../model/types';
 
@@ -65,12 +66,20 @@ export interface ReachMatrix {
   quickConnect: string[];
 }
 
+export interface DeliveryMatrix {
+  /** Destinations that receive data from at least one Source, in inventory order. */
+  destinations: { id: string; label: string; disabled: boolean; missing: boolean }[];
+  /** One row per enabled Source; cells follow `destinations`, undefined where nothing arrives. */
+  rows: { sourceId: string; mode: 'Routes' | 'QuickConnect'; cells: (Delivery | undefined)[] }[];
+}
+
 export interface AsBuilt {
   group: string;
   criblVersion?: string;
   summary: AsBuiltSummary;
   routes: RouteRow[];
   reach: ReachMatrix;
+  delivery: DeliveryMatrix;
   sources: SourceRow[];
   pipelines: PipelineRow[];
   destinations: DestinationRow[];
@@ -131,6 +140,41 @@ export function buildReachMatrix(inv: Inventory): ReachMatrix {
   };
 }
 
+/** Column header: the destination id, flagged when it is disabled or not in the inventory. */
+export const destinationHeader = (d: DeliveryMatrix['destinations'][number]) =>
+  `${d.label}${d.disabled ? ' (disabled)' : d.missing ? ' (missing)' : ''}`;
+
+/** Enabled Sources whose data reaches no Destination at all. */
+export const undelivered = (m: DeliveryMatrix) => m.rows.filter((r) => r.cells.every((c) => !c)).map((r) => r.sourceId);
+
+/** Short cell text for the delivery matrix. */
+export const deliveryLabel = (d: Delivery | undefined) => (!d ? '—' : d.strength === 'yes' ? '✓' : '?');
+
+export const DELIVERY_LEGEND =
+  '✓ arrives; ? depends on event content; — nothing arrives. Follows Routes, QuickConnect, the default alias, and Output Router rules.';
+
+export function buildDeliveryMatrix(inv: Inventory): DeliveryMatrix {
+  const bySource = deliveries(inv);
+  const used = new Set([...bySource.values()].flat().map((d) => d.destinationId));
+  const known = inv.destinations.map((d) => d.id);
+  const ids = [...known.filter((id) => used.has(id)), ...[...used].filter((id) => !known.includes(id)).sort()];
+  const byId = new Map(inv.destinations.map((d) => [d.id, d]));
+  return {
+    destinations: ids.map((id) => ({
+      id,
+      label: id,
+      disabled: byId.get(id)?.disabled ?? false,
+      missing: id !== EXPRESSION_OUTPUT && !byId.has(id),
+    })),
+    rows: inv.sources
+      .filter((s) => !s.disabled && bySource.has(s.id))
+      .map((s) => {
+        const found = new Map(bySource.get(s.id)!.map((d) => [d.destinationId, d]));
+        return { sourceId: s.id, mode: s.sendToRoutes ? 'Routes' : 'QuickConnect', cells: ids.map((id) => found.get(id)) };
+      }),
+  };
+}
+
 export function buildAsBuilt(inv: Inventory, graph: ReferenceGraph): AsBuilt {
   const pipelines = inv.pipelines.filter((p) => !p.packId);
   return {
@@ -165,6 +209,7 @@ export function buildAsBuilt(inv: Inventory, graph: ReferenceGraph): AsBuilt {
       };
     }),
     reach: buildReachMatrix(inv),
+    delivery: buildDeliveryMatrix(inv),
     sources: inv.sources.map((s) => ({
       id: s.id,
       type: s.type,
