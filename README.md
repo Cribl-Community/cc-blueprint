@@ -17,7 +17,7 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
     * A Source × Route reach matrix read from the Route filters (never executed): which Routes each Source's events can reach, where a Final Route stops them, and which Routes no Source reaches.
     * A Source → Destination matrix: where each Source's data ends up, following Routes, QuickConnect, the default alias, and Output Router rules.
     * One-click Markdown export: a handoff document with a Mermaid flowchart, every table, and the findings.
-  * **Linter.** Ten rules with severity, evidence, and a one-line fix. Findings can be suppressed with a reason, and suppressions persist for the whole team.
+  * **Linter.** Thirteen rules with severity, evidence, and a one-line fix. Findings can be suppressed with a reason, and suppressions persist for the whole team.
   * **L01 fix-it.** Reorders a shadowing route after a before/after preview and explicit confirmation. The change is left uncommitted for review.
   * **Snapshots.** Labelled point-in-time captures. Compare any two, or a snapshot against the current config, with route-order and field-level changes, plus which Routes each Source gains or loses. The L01 fix-it preview shows the same per-Source changes before anything is written.
 * Intended users: Cribl admins, platform owners, consultants.
@@ -37,6 +37,9 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
 | L08 | Regex starts with an unanchored `.*` | Info |
 | L09 | Route no Source reaches: every routed Source fails its filter or is taken by an earlier Final Route (read from the filters, never executed) | Warning |
 | L10 | A Route's filter targets a specific Source, but an earlier Final Route takes that Source's events first | Warning |
+| L11 | Data sent to a disabled Destination by an enabled Route, QuickConnect link, or Output Router (follows the default alias) | Error |
+| L12 | Same data delivered twice: a non-Final Route and a later Route send the same Sources' events through the same Pipeline to the same Destination | Warning |
+| L13 | Events dropped after expensive work: a Drop, Sampling, Regex Filter, or Suppress function that only reads raw fields runs after Regex Extract, Parser, Lookup, and similar | Info |
 
 Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-configquest-for-cribl). Config Quest is a read-only browser and hygiene checker across groups. Blueprint focuses on the handoff document, risk rules, recorded suppressions, labelled snapshot diffs, and a confirmed fix-it.
 

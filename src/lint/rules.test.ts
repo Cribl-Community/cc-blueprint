@@ -15,6 +15,9 @@ import { L07, findSecret, mask } from './rules/L07';
 import { L08 } from './rules/L08';
 import { L09 } from './rules/L09';
 import { L10 } from './rules/L10';
+import { L11 } from './rules/L11';
+import { L12 } from './rules/L12';
+import { L13 } from './rules/L13';
 import { lint, runRule } from './runner';
 import type { Rule } from './types';
 
@@ -96,6 +99,96 @@ describe('L10 targeted source never reaches its route', () => {
     ];
     expect(keys(L10, inventory({ sources, routes: routes({ final: false }, "__inputId.startsWith('datagen:')") }))).toEqual([]);
     expect(keys(L10, inventory({ sources, routes: routes({}, "__inputId.includes(':')") }))).toEqual([]);
+  });
+});
+
+describe('L11 data sent to a disabled destination', () => {
+  const destinations = [
+    destination('devnull'),
+    destination('lake', { disabled: true }),
+    destination('default', { type: 'default', defaultId: 'lake' }),
+    destination('router1', { type: 'router', rules: [{ filter: 'true', output: 'lake', final: true }] }),
+  ];
+
+  it('names every enabled route, QuickConnect link, and router that still sends to it, through the default alias', () => {
+    const inv = inventory({
+      sources: [source('qc', { sendToRoutes: false, connections: [{ output: 'lake' }] })],
+      routes: [route(0, { filter: 'x', output: 'default' }), route(1, { output: 'devnull' })],
+      destinations,
+    });
+    const [f] = runRule(L11, inv, buildGraph(inv));
+    expect(f.key).toBe('L11/destination/lake');
+    expect(f.message).toBe(
+      'Destination "lake" is disabled, but route "route0", QuickConnect "qc", router "router1" still send data to it, so those events are not delivered.',
+    );
+  });
+
+  it('stays quiet when only disabled routes point at it', () => {
+    const inv = inventory({
+      routes: [route(0, { filter: 'x', output: 'lake', disabled: true }), route(1, { output: 'devnull' })],
+      destinations: destinations.filter((d) => d.id !== 'router1'),
+    });
+    expect(keys(L11, inv)).toEqual([]);
+  });
+});
+
+describe('L12 same data delivered twice', () => {
+  const sources = [source('gen_a'), source('gen_b')];
+  const destinations = [
+    destination('devnull'),
+    destination('lake', { type: 'cribl_lake' }),
+    destination('default', { type: 'default', defaultId: 'devnull' }),
+  ];
+
+  it('fires when a non-Final route and a later route send the same events through the same pipeline and destination', () => {
+    const inv = inventory({
+      sources,
+      destinations,
+      routes: [route(0, { filter: "__inputId=='datagen:gen_a'", final: false, output: 'lake' }), route(1, { output: 'lake' })],
+    });
+    const [f] = runRule(L12, inv, buildGraph(inv));
+    expect(f.key).toBe('L12/route/r0/r1');
+    expect(f.message).toContain('so they are delivered twice (from gen_a)');
+  });
+
+  it('says "may" when a filter depends on event content', () => {
+    const inv = inventory({
+      sources,
+      destinations,
+      routes: [route(0, { filter: "host=='x'", final: false, output: 'lake' }), route(1, { output: 'lake' })],
+    });
+    expect(runRule(L12, inv, buildGraph(inv))[0].message).toContain('events matching both may be delivered twice (from gen_a, gen_b)');
+  });
+
+  it('stays quiet for Final routes, different pipelines or destinations, and devnull', () => {
+    const two = (first: Partial<Parameters<typeof route>[1]>, second: Partial<Parameters<typeof route>[1]> = {}) =>
+      keys(L12, inventory({ sources, destinations, routes: [route(0, { output: 'lake', ...first }), route(1, { output: 'lake', ...second })] }));
+    expect(two({ filter: 'x', final: true })).toEqual([]);
+    expect(two({ final: false, pipeline: 'p1' })).toEqual([]);
+    expect(two({ final: false }, { output: 'default' })).toEqual([]); // default → devnull
+    expect(two({ final: false, output: 'devnull' }, { output: 'devnull' })).toEqual([]);
+  });
+});
+
+describe('L13 events dropped after expensive work', () => {
+  const pipe = (functions: PipelineFunction[]) => inventory({ pipelines: [pipeline('passthru'), { id: 'p', functions }] });
+
+  it('fires when a drop that only reads raw fields runs after expensive functions', () => {
+    const inv = pipe([fn('regex_extract', {}), fn('serde', {}), fn('drop', {}, { filter: "sourcetype=='noise'" })]);
+    const [f] = runRule(L13, inv, buildGraph(inv));
+    expect(f.key).toBe('L13/pipeline/p/f2');
+    expect(f.message).toBe('Pipeline "p" discards events in function 3 (drop) after 2 expensive functions (regex_extract, serde) already ran on them.');
+    expect(f.fix).toBe('Move function 3 (drop) above function 1 (regex_extract); it only reads fields that exist before parsing.');
+  });
+
+  it('stays quiet when the drop reads parsed fields, including inside Sampling rules', () => {
+    expect(keys(L13, pipe([fn('regex_extract', {}), fn('drop', {}, { filter: "action=='deny'" })]))).toEqual([]);
+    expect(keys(L13, pipe([fn('regex_extract', {}), fn('sampling', { rules: [{ filter: "__action=='permitted'", rate: 10 }] })]))).toEqual([]);
+    // An Eval sets the field the drop reads, so the drop depends on it.
+    expect(keys(L13, pipe([fn('serde', {}), fn('eval', { add: [{ name: 'sourcetype', value: "'x'" }] }), fn('drop', {}, { filter: "sourcetype=='x'" })]))).toEqual([]);
+    // Nothing expensive before it, or an aggregation reshaped the events.
+    expect(keys(L13, pipe([fn('eval', {}), fn('drop', {}, { filter: "host=='a'" })]))).toEqual([]);
+    expect(keys(L13, pipe([fn('regex_extract', {}), fn('aggregation', {}), fn('drop', {}, { filter: "host=='a'" })]))).toEqual([]);
   });
 });
 

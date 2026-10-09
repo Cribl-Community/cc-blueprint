@@ -251,3 +251,35 @@ export function constantString(expr: string): string | undefined {
     return undefined;
   }
 }
+
+/** Field names a filter reads, or undefined if it can't be parsed. */
+export function referencedFields(filter: string): string[] | undefined {
+  let node: Node;
+  try {
+    node = parse(filter.trim() === '' ? 'true' : filter);
+  } catch {
+    return undefined;
+  }
+  const names = new Set<string>();
+  const walk = (n: Node): void => {
+    switch (n.t) {
+      case 'field':
+        names.add(n.name);
+        return;
+      case 'not':
+        return walk(n.e);
+      case 'and':
+      case 'or':
+      case 'eq':
+        walk(n.a);
+        return walk(n.b);
+      case 'call':
+        walk(n.target);
+        return n.args.forEach(walk);
+      case 'lit':
+        return;
+    }
+  };
+  walk(node);
+  return [...names];
+}
