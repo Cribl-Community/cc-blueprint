@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { HealthMap } from '../api/health';
 import type { ReferenceGraph } from '../model/graph';
 import type { RouteReach } from '../model/reach';
 import { busFlow, HEADER_H, NODE_H, NODE_W, PAD, type FlowLayout, type LayoutNode } from '../report/flowLayout';
@@ -9,6 +10,8 @@ interface Props {
   graph: ReferenceGraph;
   /** Which Routes each routed Source can reach, from its Route filters. */
   reach: Map<string, RouteReach[]>;
+  /** Live health for Sources and Destinations, when it could be read. */
+  health?: HealthMap;
 }
 
 const curve = (a: { x: number; y: number }, b: { x: number; y: number }) => {
@@ -22,7 +25,9 @@ const truncate = (s: string, max: number) => (s.length > max ? `${s.slice(0, max
 const ROW_CHARS = 30;
 const SUB_MAX = 12;
 
-export default function FlowDiagram({ layout, graph, reach }: Props) {
+const HEALTH_TEXT = { Green: 'healthy', Yellow: 'degraded', Red: 'critical', Unknown: 'unknown' } as const;
+
+export default function FlowDiagram({ layout, graph, reach, health }: Props) {
   const [hovered, setHovered] = useState<LayoutNode | null>(null);
   const trace = useMemo(() => (hovered ? traceHover(hovered, graph, reach) : null), [hovered, graph, reach]);
 
@@ -84,6 +89,8 @@ export default function FlowDiagram({ layout, graph, reach }: Props) {
         ))}
 
         {layout.nodes.map((n) => {
+          // Disabled objects can report stale status, so they get no dot.
+          const h = n.disabled ? undefined : health?.get(n.key);
           const cls = [
             'flow-node',
             `flow-node--${n.column}`,
@@ -103,9 +110,10 @@ export default function FlowDiagram({ layout, graph, reach }: Props) {
               onMouseLeave={() => setHovered(null)}
             >
               <title>
-                {`${n.label}${n.sublabel ? ` — ${n.sublabel}` : ''}${n.disabled ? ' (disabled)' : ''}${n.unreferenced ? ' (not referenced)' : ''}${n.findingCount ? ` · ${n.findingCount} finding${n.findingCount === 1 ? '' : 's'} (see Linter)` : ''}`}
+                {`${n.label}${n.sublabel ? ` — ${n.sublabel}` : ''}${n.disabled ? ' (disabled)' : ''}${n.unreferenced ? ' (not referenced)' : ''}${n.findingCount ? ` · ${n.findingCount} finding${n.findingCount === 1 ? '' : 's'} (see Linter)` : ''}${h ? ` · live: ${HEALTH_TEXT[h.health]}${h.error ? ` (${h.error})` : ''}` : ''}`}
               </title>
               <rect width={NODE_W} height={NODE_H} rx={6} />
+              {h && <circle className={`flow-health flow-health--${h.health.toLowerCase()}`} cx={NODE_W - 5} cy={5} r={3.5} />}
               <text x={10} y={NODE_H / 2} className="flow-node-label">
                 {truncate(n.label, ROW_CHARS - (n.sublabel ? Math.min(n.sublabel.length, SUB_MAX) + 2 : 0))}
               </text>

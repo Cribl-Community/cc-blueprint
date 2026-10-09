@@ -11,6 +11,7 @@ import SnapshotsTab from './ui/SnapshotsTab';
 import { useHostTheme } from './ui/theme';
 import { useRuleSettings } from './ui/useRuleSettings';
 import { useSuppressions } from './ui/useSuppressions';
+import { useHealth } from './ui/useHealth';
 import { useInventory } from './ui/useInventory';
 
 // Dev-only tools (demo seeder, Phase 0 probe); the DEV guard lets Vite drop them from production.
@@ -32,6 +33,7 @@ function App() {
   const [tab, setTab] = useState<Tab>('asbuilt');
   const [showDev, setShowDev] = useState(false);
   const [inv, reloadInventory] = useInventory(groupId);
+  const health = useHealth(groupId, inv.state === 'ready' ? inv.loadedAt : null);
   const suppressions = useSuppressions(groupId);
   const ruleSettings = useRuleSettings(groupId);
   // Rule settings apply before anything else, so every tab, count, and export follows them.
@@ -130,7 +132,7 @@ function App() {
                   {w}
                 </Alert>
               ))}
-            {inv.state === 'ready' && tab === 'asbuilt' && <AsBuiltTab inventory={inv.inventory} graph={inv.graph} findings={split.active} suppressed={split.suppressed} />}
+            {inv.state === 'ready' && tab === 'asbuilt' && <AsBuiltTab inventory={inv.inventory} graph={inv.graph} findings={split.active} suppressed={split.suppressed} health={health} />}
             {inv.state === 'ready' && tab === 'linter' && (
               <LinterTab
                 inventory={inv.inventory}

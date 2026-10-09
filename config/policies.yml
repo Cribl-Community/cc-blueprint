@@ -18,3 +18,8 @@ policies:
     actions: ['GET']
   - object: '/m/:gid/packs'
     actions: ['GET']
+  # Live health on the As-Built tab (read-only).
+  - object: '/m/:gid/system/status/inputs'
+    actions: ['GET']
+  - object: '/m/:gid/system/status/outputs'
+    actions: ['GET']

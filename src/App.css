@@ -698,3 +698,25 @@
 .rule-ref.is-off dt {
   color: token('color.foreground.subtle');
 }
+
+/* Live health dots on Sources and Destinations */
+.flow-health {
+  stroke: token('color.background.panel.solid');
+  stroke-width: 1;
+}
+
+.flow-health--green {
+  fill: token('color.foreground.success.default');
+}
+
+.flow-health--yellow {
+  fill: token('color.foreground.warning.default');
+}
+
+.flow-health--red {
+  fill: token('color.foreground.danger.default');
+}
+
+.flow-health--unknown {
+  fill: token('color.foreground.subtle');
+}

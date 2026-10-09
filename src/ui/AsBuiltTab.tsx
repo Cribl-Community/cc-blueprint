@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Button, Table, Tag, Text, defineColumns } from '@capra/core';
+import { Alert, Button, Table, Tag, Text, defineColumns } from '@capra/core';
 import type { ReferenceGraph } from '../model/graph';
 import type { Finding } from '../lint/types';
 import type { Delivery } from '../model/delivery';
@@ -27,6 +27,7 @@ import { layoutFlow } from '../report/flowLayout';
 import { toMarkdown, type SuppressedFinding } from '../report/markdown';
 import { downloadText } from './download';
 import FlowDiagram from './FlowDiagram';
+import type { HealthState } from './useHealth';
 
 interface Props {
   inventory: Inventory;
@@ -34,6 +35,7 @@ interface Props {
   /** Open findings (suppressions already applied). */
   findings: Finding[];
   suppressed: SuppressedFinding[];
+  health: HealthState;
 }
 
 const yesNo = (v: unknown) => (v ? 'Yes' : 'No');
@@ -215,7 +217,30 @@ function Stat({ label, value, detail }: { label: string; value: number; detail?:
   );
 }
 
-export default function AsBuiltTab({ inventory, graph, findings, suppressed }: Props) {
+/** Live health line and a warning listing enabled objects that aren't Green. */
+function HealthSummary({ health, inventory }: { health: HealthState; inventory: Inventory }) {
+  if (health.error) {
+    return <Text variant="body-sm-normal">{`Live health unavailable: ${health.error}`}</Text>;
+  }
+  if (!health.health) return null;
+  const enabled = new Set([
+    ...inventory.sources.filter((s) => !s.disabled).map((s) => `source:${s.id}`),
+    ...inventory.destinations.filter((d) => !d.disabled).map((d) => `destination:${d.id}`),
+  ]);
+  const bad = [...health.health].filter(([key, h]) => enabled.has(key) && (h.health === 'Red' || h.health === 'Yellow'));
+  const at = health.at?.toLocaleTimeString();
+  if (!bad.length) return <Text variant="body-sm-normal">{`Live health: every Source and Destination is Green (checked ${at}).`}</Text>;
+  const red = bad.some(([, h]) => h.health === 'Red');
+  return (
+    <Alert appearance={red ? 'danger' : 'warning'} title={`${bad.length} not healthy (checked ${at})`}>
+      {bad
+        .map(([key, h]) => `${key.replace(':', ' ')}: ${h.health === 'Red' ? 'critical' : 'degraded'}${h.error ? ` (${h.error})` : ''}`)
+        .join('; ')}
+    </Alert>
+  );
+}
+
+export default function AsBuiltTab({ inventory, graph, findings, suppressed, health }: Props) {
   const report = useMemo(() => buildAsBuilt(inventory, graph), [inventory, graph]);
   const layout = useMemo(() => layoutFlow(inventory, graph, findings), [inventory, graph, findings]);
   const reach = useMemo(() => routeReach(inventory), [inventory]);
@@ -253,7 +278,8 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed }: P
           Pipeline. While tracing, Route filters decide which Sources reach which Routes: a solid line is a
           definite match, a dashed one depends on event content.
         </Text>
-        <FlowDiagram layout={layout} graph={graph} reach={reach} />
+        <HealthSummary health={health} inventory={inventory} />
+        <FlowDiagram layout={layout} graph={graph} reach={reach} health={health.health} />
         <div className="flow-legend">
           <span><span className="swatch swatch--error" /> Error</span>
           <span><span className="swatch swatch--warning" /> Warning</span>
