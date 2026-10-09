@@ -17,7 +17,7 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
     * A Source × Route reach matrix read from the Route filters (never executed): which Routes each Source's events can reach, where a Final Route stops them, and which Routes no Source reaches.
     * A Source → Destination matrix: where each Source's data ends up, following Routes, QuickConnect, the default alias, and Output Router rules.
     * One-click Markdown export: a handoff document with a Mermaid flowchart, every table, and the findings.
-  * **Linter.** Thirteen rules with severity, evidence, and a one-line fix. Findings can be suppressed with a reason, and suppressions persist for the whole team.
+  * **Linter.** Thirteen rules with severity, evidence, and a one-line fix. Findings can be suppressed with a reason, and suppressions persist for the whole team. Rules can be turned off or given a different severity per Worker Group.
   * **L01 fix-it.** Reorders a shadowing route after a before/after preview and explicit confirmation. The change is left uncommitted for review.
   * **Snapshots.** Labelled point-in-time captures. Compare any two, or a snapshot against the current config, with route-order and field-level changes, plus which Routes each Source gains or loses. The L01 fix-it preview shows the same per-Source changes before anything is written.
 * Intended users: Cribl admins, platform owners, consultants.
@@ -72,7 +72,7 @@ Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-co
 
 ### If The App Is Not Yet In The Cribl Marketplace
 1. Open the repository's **Releases** page.
-2. Download `cc-blueprint-1.0.11.tgz` (or the version you want).
+2. Download `cc-blueprint-1.0.12.tgz` (or the version you want).
 3. In Cribl, go to **Apps > Add App > Import from File**.
 4. Upload the `.tgz` file.
 5. Review the app details and complete installation. No other steps are needed.
@@ -152,6 +152,7 @@ Blueprint stores only its own data, in the app's KV store:
 | `snapshot/<group>/<id>/meta` | Snapshot label, time, author, object counts |
 | `snapshot/<group>/<id>/chunk/<n>` | The snapshot's normalized config as JSON, split into chunks under 90 KB |
 | `suppress/<group>` | Suppressed findings: finding key, reason, author, date |
+| `rules/<group>` | Rule settings that differ from the defaults: rule id, enabled, severity, author, date |
 
 * **No secrets are stored.** Before a snapshot is saved, anything the L07 detector flags is replaced by its first 4 characters plus a short fingerprint. KV encryption is therefore not needed.
 * **Shared.** KV data is shared by everyone who uses the app in the workspace, which makes suppressions a team decision.

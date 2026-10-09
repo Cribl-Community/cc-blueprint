@@ -64,7 +64,8 @@ export function unsuppress(group: string, findingKey: string, kv: KvClient = htt
 }
 
 /** Splits findings into active and suppressed; also returns suppressions that match nothing now. */
-export function applySuppressions(findings: Finding[], doc: SuppressionDoc) {
+/** `ignoreRules`: rules turned off for the group, whose suppressions aren't stale, just idle. */
+export function applySuppressions(findings: Finding[], doc: SuppressionDoc, ignoreRules: Set<string> = new Set()) {
   const active: Finding[] = [];
   const suppressed: { finding: Finding; suppression: Suppression }[] = [];
   for (const f of findings) {
@@ -74,7 +75,7 @@ export function applySuppressions(findings: Finding[], doc: SuppressionDoc) {
   }
   const live = new Set(findings.map((f) => f.key));
   const stale = Object.entries(doc.items)
-    .filter(([k]) => !live.has(k))
+    .filter(([k]) => !live.has(k) && !ignoreRules.has(k.split('/')[0]))
     .map(([k, s]) => ({ key: k, suppression: s }));
   return { active, suppressed, stale };
 }

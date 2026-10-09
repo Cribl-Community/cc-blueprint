@@ -13,7 +13,7 @@ export interface SuppressionsApi {
 
 const EMPTY: SuppressionDoc = { schema: 1, items: {} };
 
-async function currentUser(): Promise<string | undefined> {
+export async function currentUser(): Promise<string | undefined> {
   try {
     const u = await window.getCriblUser();
     return u.username;

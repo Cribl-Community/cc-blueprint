@@ -12,14 +12,11 @@ export function runRule(rule: Rule, inv: Inventory, graph: ReferenceGraph): Find
   }));
 }
 
+/** Severity, then rule, then object. */
+export const compareFindings = (a: Finding, b: Finding) =>
+  SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.ruleId.localeCompare(b.ruleId) || a.key.localeCompare(b.key);
+
 /** Runs every rule; findings sorted by severity, then rule, then object. */
 export function lint(inv: Inventory, graph: ReferenceGraph, rules: Rule[] = RULES): Finding[] {
-  return rules
-    .flatMap((rule) => runRule(rule, inv, graph))
-    .sort(
-      (a, b) =>
-        SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] ||
-        a.ruleId.localeCompare(b.ruleId) ||
-        a.key.localeCompare(b.key),
-    );
+  return rules.flatMap((rule) => runRule(rule, inv, graph)).sort(compareFindings);
 }

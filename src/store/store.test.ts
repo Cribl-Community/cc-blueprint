@@ -5,6 +5,8 @@ import { normalize } from '../model/normalize';
 import { lint } from '../lint/runner';
 import { chunkText, KV_CHUNK_BYTES, kvKey, memoryKv } from './kv';
 import { deleteSnapshot, listSnapshots, loadSnapshot, saveSnapshot, snapshotId } from './snapshots';
+import type { Finding } from '../lint/types';
+import { applyRuleSettings, loadRuleSettings, setRuleSetting, type RuleSettingsDoc } from './ruleSettings';
 import { applySuppressions, loadSuppressions, suppress, unsuppress } from './suppressions';
 
 const bytes = (s: string) => new TextEncoder().encode(s).length;
@@ -95,5 +97,42 @@ describe('suppressions', () => {
   it('treats a missing or corrupt document as empty', async () => {
     expect((await loadSuppressions('none', memoryKv())).items).toEqual({});
     expect((await loadSuppressions('bad', memoryKv({ 'suppress/bad': 'nope' }))).items).toEqual({});
+  });
+});
+
+describe('rule settings', () => {
+  const finding = (ruleId: string, severity: Finding['severity'], id = 'x'): Finding => ({
+    key: `${ruleId}/route/${id}`,
+    ruleId,
+    severity,
+    object: { kind: 'route', id },
+    message: 'm',
+    fix: 'f',
+  });
+
+  it('stores only rules that differ from their defaults', async () => {
+    const kv = memoryKv();
+    let doc = await setRuleSetting('g', 'L13', { enabled: false }, { kv, by: 'ana', now: new Date(0) });
+    expect(doc.rules).toEqual({ L13: { enabled: false, severity: undefined, by: 'ana', at: '1970-01-01T00:00:00.000Z' } });
+    doc = await setRuleSetting('g', 'L05', { severity: 'warning' }, { kv }); // L05's default
+    expect(Object.keys(doc.rules)).toEqual(['L13']);
+    doc = await setRuleSetting('g', 'L13', { enabled: true }, { kv });
+    expect(doc.rules).toEqual({});
+    expect((await loadRuleSettings('g', kv)).rules).toEqual({});
+  });
+
+  it('drops findings from disabled rules and re-sorts after severity overrides', () => {
+    const doc: RuleSettingsDoc = {
+      schema: 1,
+      rules: { L06: { severity: 'error', at: '' }, L08: { enabled: false, at: '' } },
+    };
+    const out = applyRuleSettings([finding('L02', 'warning'), finding('L06', 'info'), finding('L08', 'info')], doc);
+    expect(out.map((f) => `${f.ruleId}:${f.severity}`)).toEqual(['L06:error', 'L02:warning']);
+  });
+
+  it("doesn't call a disabled rule's suppressions stale", () => {
+    const doc = { schema: 1 as const, items: { 'L08/pipeline/p/f0': { reason: 'r', at: '', message: 'm' } } };
+    expect(applySuppressions([], doc).stale).toHaveLength(1);
+    expect(applySuppressions([], doc, new Set(['L08'])).stale).toHaveLength(0);
   });
 });

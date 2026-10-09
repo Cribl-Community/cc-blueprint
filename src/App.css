@@ -679,3 +679,22 @@
   flex-direction: column;
   gap: token('spacing.xs');
 }
+
+/* Rule settings */
+.rule-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: token('spacing.lg');
+  margin-bottom: token('spacing.sm');
+}
+
+.rule-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: token('spacing.sm');
+}
+
+.rule-ref.is-off dt {
+  color: token('color.foreground.subtle');
+}

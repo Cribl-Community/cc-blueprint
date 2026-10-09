@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Alert, Button, EmptyState, Tag, Text, TextField } from '@capra/core';
+import { Alert, Button, EmptyState, SelectField, Switch, Tag, Text, TextField } from '@capra/core';
 import { planL01Fix, type L01FixPlan } from '../fix/l01';
 import type { ReferenceGraph } from '../model/graph';
 import type { Inventory } from '../model/types';
 import { RULES } from '../lint/rules';
 import type { Finding, ObjectRef, Severity } from '../lint/types';
+import { disabledRules, effectiveSeverity } from '../store/ruleSettings';
 import { applySuppressions } from '../store/suppressions';
 import FixL01Modal from './FixL01Modal';
 import ObjectDrawer from './ObjectDrawer';
 import { useHostTheme } from './theme';
+import type { RuleSettingsApi } from './useRuleSettings';
 import type { SuppressionsApi } from './useSuppressions';
 
 interface Props {
@@ -16,6 +18,7 @@ interface Props {
   graph: ReferenceGraph;
   findings: Finding[];
   suppressions: SuppressionsApi;
+  ruleSettings: RuleSettingsApi;
   onConfigChanged: () => void;
 }
 
@@ -110,12 +113,68 @@ function FindingCard({ f, onOpen, onSuppress, onFix }: CardProps) {
   );
 }
 
-export default function LinterTab({ inventory, graph, findings, suppressions, onConfigChanged }: Props) {
+function RuleSettings({ api }: { api: RuleSettingsApi }) {
+  const off = disabledRules(api.doc);
+  const changed = Object.keys(api.doc.rules).length;
+  return (
+    <details className="rule-reference">
+      <summary>{`Rules and settings (${RULES.length} rules${off.size ? `, ${off.size} off` : ''}${changed ? `, ${changed} changed for this group` : ''})`}</summary>
+      {api.error && <Alert appearance="danger">{api.error}</Alert>}
+      <Text>Turn rules off or change their severity for this Worker Group. Settings are shared with everyone who uses Blueprint.</Text>
+      <dl>
+        {RULES.map((r) => {
+          const setting = api.doc.rules[r.id];
+          const severity = effectiveSeverity(api.doc, r.id) ?? r.severity;
+          const enabled = !off.has(r.id);
+          return (
+            <div key={r.id} className={`rule-ref${enabled ? '' : ' is-off'}`}>
+              <dt>
+                <Tag color={colorOf(severity)}>{r.id}</Tag> {r.title}
+              </dt>
+              <dd>
+                <div className="rule-controls">
+                  <label className="rule-switch">
+                    <Switch
+                      aria-label={`${r.id} enabled`}
+                      size="sm"
+                      checked={enabled}
+                      disabled={api.loading}
+                      onChange={(e) => void api.update(r.id, { enabled: e.target.checked })}
+                    />
+                    <span>Enabled</span>
+                  </label>
+                  <SelectField
+                    label="Severity"
+                    layout="horizontal"
+                    size="sm"
+                    items={SEVERITIES.map((s) => ({ id: s.key, label: s.key === r.severity ? `${s.title} (default)` : s.title }))}
+                    value={severity}
+                    disabled={api.loading || !enabled}
+                    onChange={(key) => key !== null && void api.update(r.id, { severity: key as Severity })}
+                  />
+                  {setting && (
+                    <Text variant="body-sm-normal">{`Changed${setting.by ? ` by ${setting.by}` : ''} on ${setting.at.slice(0, 10)}`}</Text>
+                  )}
+                </div>
+                {r.rationale}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    </details>
+  );
+}
+
+export default function LinterTab({ inventory, graph, findings, suppressions, ruleSettings, onConfigChanged }: Props) {
   const [open, setOpen] = useState<{ object: ObjectRef; location?: string } | null>(null);
   const theme = useHostTheme();
   const [fixPlan, setFixPlan] = useState<L01FixPlan | null>(null);
   const [unsuppressError, setUnsuppressError] = useState<string>();
-  const { active, suppressed, stale } = applySuppressions(findings, suppressions.doc);
+  const off = disabledRules(ruleSettings.doc);
+  const { active, suppressed, stale } = applySuppressions(findings, suppressions.doc, off);
+  const enabledCount = RULES.length - off.size;
+  const rulesPassed = `All ${enabledCount} enabled rule${enabledCount === 1 ? '' : 's'} passed for ${inventory.group}`;
   const counts = Object.fromEntries(SEVERITIES.map((s) => [s.key, active.filter((f) => f.severity === s.key).length]));
   const dynamicRoutes = inventory.routes.filter((r) => !r.disabled && r.outputExpression !== undefined);
 
@@ -166,8 +225,8 @@ export default function LinterTab({ inventory, graph, findings, suppressions, on
           title="No open findings"
           description={
             suppressed.length
-              ? `All ${RULES.length} rules passed for ${inventory.group}, with ${suppressed.length} finding${suppressed.length === 1 ? '' : 's'} suppressed.`
-              : `All ${RULES.length} rules passed for ${inventory.group}.`
+              ? `${rulesPassed}, with ${suppressed.length} finding${suppressed.length === 1 ? '' : 's'} suppressed.`
+              : `${rulesPassed}.`
           }
         />
       )}
@@ -226,19 +285,7 @@ export default function LinterTab({ inventory, graph, findings, suppressions, on
         </details>
       )}
 
-      <details className="rule-reference">
-        <summary>{`Rule reference (${RULES.length} rules)`}</summary>
-        <dl>
-          {RULES.map((r) => (
-            <div key={r.id} className="rule-ref">
-              <dt>
-                <Tag color={colorOf(r.severity)}>{r.id}</Tag> {r.title}
-              </dt>
-              <dd>{r.rationale}</dd>
-            </div>
-          ))}
-        </dl>
-      </details>
+      <RuleSettings api={ruleSettings} />
 
       <ObjectDrawer target={open} inventory={inventory} graph={graph} onClose={() => setOpen(null)} />
       <FixL01Modal inventory={inventory} plan={fixPlan} onClose={() => setFixPlan(null)} onApplied={onConfigChanged} />

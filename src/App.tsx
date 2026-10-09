@@ -2,12 +2,14 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Alert, Button, EmptyState, Spinner, TabNav, Text } from '@capra/core';
 import { listWorkerGroups, type WorkerGroup } from './api/groups';
 import { lint } from './lint/runner';
+import { applyRuleSettings, disabledRules } from './store/ruleSettings';
 import { applySuppressions } from './store/suppressions';
 import AsBuiltTab from './ui/AsBuiltTab';
 import GroupPicker from './ui/GroupPicker';
 import LinterTab from './ui/LinterTab';
 import SnapshotsTab from './ui/SnapshotsTab';
 import { useHostTheme } from './ui/theme';
+import { useRuleSettings } from './ui/useRuleSettings';
 import { useSuppressions } from './ui/useSuppressions';
 import { useInventory } from './ui/useInventory';
 
@@ -31,11 +33,22 @@ function App() {
   const [showDev, setShowDev] = useState(false);
   const [inv, reloadInventory] = useInventory(groupId);
   const suppressions = useSuppressions(groupId);
-  const findings = useMemo(() => (inv.state === 'ready' ? lint(inv.inventory, inv.graph) : []), [inv]);
-  const split = useMemo(() => applySuppressions(findings, suppressions.doc), [findings, suppressions.doc]);
+  const ruleSettings = useRuleSettings(groupId);
+  // Rule settings apply before anything else, so every tab, count, and export follows them.
+  const findings = useMemo(
+    () => (inv.state === 'ready' ? applyRuleSettings(lint(inv.inventory, inv.graph), ruleSettings.doc) : []),
+    [inv, ruleSettings.doc],
+  );
+  const split = useMemo(
+    () => applySuppressions(findings, suppressions.doc, disabledRules(ruleSettings.doc)),
+    [findings, suppressions.doc, ruleSettings.doc],
+  );
   const tabs = [
     { key: 'asbuilt', name: 'As-Built' },
-    { key: 'linter', name: inv.state === 'ready' && !suppressions.loading ? `Linter (${split.active.length})` : 'Linter' },
+    {
+      key: 'linter',
+      name: inv.state === 'ready' && !suppressions.loading && !ruleSettings.loading ? `Linter (${split.active.length})` : 'Linter',
+    },
     { key: 'snapshots', name: 'Snapshots' },
   ];
 
@@ -124,6 +137,7 @@ function App() {
                 graph={inv.graph}
                 findings={findings}
                 suppressions={suppressions}
+                ruleSettings={ruleSettings}
                 onConfigChanged={reloadInventory}
               />
             )}
