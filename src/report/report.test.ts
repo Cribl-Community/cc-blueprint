@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { demoRaw, destination, inventory, pipeline, route, source, workspaceDefaultRaw } from '../../test/inventory';
+import { demoRaw, destination, fleetDefaultRaw, inventory, pipeline, route, source, workspaceDefaultRaw } from '../../test/inventory';
 import { buildGraph } from '../model/graph';
 import { normalize } from '../model/normalize';
 import { buildAsBuilt, unreachedRoutes } from './asBuilt';
@@ -197,5 +197,18 @@ describe('demo seed', () => {
     const hosts = text.match(/[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|net|org|io|cloud)\b/gi) ?? [];
     expect(hosts.every((h) => h.endsWith('example.com'))).toBe(true);
     expect(text).toContain('FAKE');
+  });
+});
+
+describe('Edge Fleet', () => {
+  it('reads a fresh fleet with the Stream model and lints it quietly', () => {
+    const inv = normalize(fleetDefaultRaw);
+    const graph = buildGraph(inv);
+    expect(lint(inv, graph)).toEqual([]);
+    const report = buildAsBuilt(inv, graph);
+    expect(report.summary.sources).toEqual({ total: 12, enabled: 3, quickConnect: 3 });
+    // Its enabled QuickConnect Sources send straight to devnull.
+    expect(report.delivery.rows.map((r) => r.sourceId)).toEqual(['in_system_metrics', 'in_system_state', 'in_windows_metrics']);
+    expect(report.delivery.destinations.map((d) => d.id)).toEqual(['devnull']);
   });
 });

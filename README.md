@@ -1,6 +1,6 @@
 # Cribl Blueprint
 
-Cribl Blueprint documents what is deployed in a Cribl Stream Worker Group, flags what in it is broken or risky, and keeps labelled snapshots so you can see what changed.
+Cribl Blueprint documents what is deployed in a Cribl Stream Worker Group or Edge Fleet, flags what in it is broken or risky, and keeps labelled snapshots so you can see what changed.
 
 ## Summary
 
@@ -10,7 +10,7 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
 
 ## What This App Does
 
-* Primary purpose: as-built documentation and risk review for Cribl Stream Worker Groups.
+* Primary purpose: as-built documentation and risk review for Cribl Stream Worker Groups and Edge Fleets.
 * Key capabilities:
   * **As-Built.** Inventory of Sources, Routes (in evaluation order), Pipelines, Destinations, and Packs.
     * A Source → Route → Pipeline → Destination diagram that shows QuickConnect paths. Each object is outlined by its worst lint finding.
@@ -74,14 +74,14 @@ Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-co
 
 ### If The App Is Not Yet In The Cribl Marketplace
 1. Open the repository's **Releases** page.
-2. Download `cc-blueprint-1.0.13.tgz` (or the version you want).
+2. Download `cc-blueprint-1.0.14.tgz` (or the version you want).
 3. In Cribl, go to **Apps > Add App > Import from File**.
 4. Upload the `.tgz` file.
 5. Review the app details and complete installation. No other steps are needed.
 
 ## Configuration
 
-Blueprint has no settings. It reads the Worker Groups the signed-in user can see and needs no credentials, tokens, or proxy hosts.
+Blueprint has no settings. It reads the Worker Groups and Fleets the signed-in user can see and needs no credentials, tokens, or proxy hosts.
 
 | Setting | Required | Description | Example | Scope |
 |---|---|---|---|---|
@@ -123,12 +123,13 @@ Every API call runs as the signed-in user, with that user's own Cribl permission
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/api/v1/master/groups?product=stream&fields=git.localChanges` | List Stream Worker Groups and their uncommitted-change count |
+| GET | `/api/v1/master/groups?fields=git.localChanges` | List Stream Worker Groups and Edge Fleets and their uncommitted-change count |
 | GET | `/api/v1/m/{group}/routes` | Routing table, in evaluation order |
 | GET | `/api/v1/m/{group}/pipelines` | Pipelines and their functions (also lists packs as `pack:<id>`) |
 | GET | `/api/v1/m/{group}/system/inputs` | Sources, including QuickConnect connections |
 | GET | `/api/v1/m/{group}/system/outputs` | Destinations, backpressure settings, and the `default` alias |
 | GET | `/api/v1/m/{group}/packs` | Installed packs |
+| GET | `/api/v1/master/summary/workers` | Count of connected Worker or Edge Nodes in the selected group |
 | GET | `/api/v1/m/{group}/system/status/inputs` | Live health of Sources, shown on the diagram |
 | GET | `/api/v1/m/{group}/system/status/outputs` | Live health of Destinations, shown on the diagram |
 | POST | `/api/v1/system/metrics/query` | Read-only: last-hour event counts per Source, Route, Destination, and Source × Route, filtered to the group |
@@ -171,7 +172,9 @@ This app is built by Steve Hunger (Presidio) for the CriblCon 2026 App Hackathon
 
 ## Known Limitations
 
-* Stream Worker Groups only. Edge Fleets and Search are out of scope.
+* Stream Worker Groups and Edge Fleets. Search and Outpost groups are out of scope.
+* Subfleets are listed like any Fleet, but inherited config isn't shown separately yet: Blueprint documents what the API returns for each Fleet.
+* Edge Nodes are counted, not inventoried individually.
 * Collector jobs are not read, so a pipeline used only by a Collector is reported as an orphan (L03). The fix text says so.
 * For the same reason, a Route fed only by a Collector is reported as reached by no Source (L09) and shows no reach in the matrix. Suppress the finding with that reason.
 * Route reach is read from filters without running them. Only `__inputId` and literal Source metadata fields are known; filters on event content show as "maybe", and `__inputId` is treated as unknown for `cribl_http`/`cribl_tcp` Sources, which relay events from other Cribl nodes.

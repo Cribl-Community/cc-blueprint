@@ -1,0 +1,786 @@
+{
+  "source": "Phase 0 probe of a lab workspace, sanitized by scripts/sanitize-fixtures.mjs",
+  "criblVersion": "unknown",
+  "group": "default_fleet",
+  "routes": [
+    {
+      "id": "default",
+      "routes": [
+        {
+          "id": "default",
+          "name": "default",
+          "final": true,
+          "disabled": false,
+          "pipeline": "main",
+          "description": "",
+          "enableOutputExpression": false,
+          "filter": "true",
+          "clones": [],
+          "output": "default"
+        }
+      ]
+    }
+  ],
+  "pipelines": [
+    {
+      "id": "cisco_asa",
+      "conf": {
+        "functions": [
+          {
+            "id": "eval",
+            "filter": "sourcetype!='cisco:asa'",
+            "conf": {},
+            "description": "Short-circuit all events that are NOT sourcetype cisco:asa",
+            "final": true
+          },
+          {
+            "id": "regex_extract",
+            "filter": "true",
+            "conf": {
+              "regex": "/ASA-\\d+-(?<__code>\\d+)/",
+              "source": "_raw"
+            },
+            "description": "Extract ASA Code"
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Drop stub TCP|UDP|ICMP build and teardown messages."
+            }
+          },
+          {
+            "id": "drop",
+            "filter": "[302022, 302023, 302024, 302025, 302026, 302027].indexOf(+__code) > -1",
+            "conf": {},
+            "description": "Drop stub TCP|UDP|ICMP build and teardown messages"
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Drop ICMP messages."
+            }
+          },
+          {
+            "id": "drop",
+            "filter": "[302020, 302021].indexOf(+__code) > -1",
+            "conf": {},
+            "description": "Drop ICMP messages."
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Drop TCP|UDP|ICMP messages since same information is logged in connection building/teardown."
+            }
+          },
+          {
+            "id": "drop",
+            "filter": "[305011, 305012].indexOf(+__code) > -1",
+            "conf": {},
+            "description": "Drop TCP|UDP|ICMP messages since same information is logged in connection building/teardown."
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "1. Extract field \"action\" from ASA-6-106100 messages\n2. Sample permitted ASA-6-106100 messages at 10:1"
+            }
+          },
+          {
+            "id": "regex_extract",
+            "filter": "__code == 106100",
+            "disabled": false,
+            "conf": {
+              "regex": "/ASA-\\d+-106100:\\saccess-list\\s\\w+\\s(?<__action>\\w+)/",
+              "source": "_raw"
+            },
+            "description": "Extract field \"action\" from ASA-6-106100 messages"
+          },
+          {
+            "id": "sampling",
+            "filter": "true",
+            "disabled": false,
+            "conf": {
+              "rules": [
+                {
+                  "filter": "__action=='permitted'",
+                  "rate": 10
+                }
+              ]
+            },
+            "description": "Sample permitted ASA-6-106100 messages at 10:1"
+          }
+        ],
+        "output": "default",
+        "description": "Filter and Sample Cisco ASA events"
+      }
+    },
+    {
+      "id": "cisco_estreamer",
+      "conf": {
+        "functions": [
+          {
+            "id": "eval",
+            "filter": "sourcetype!='cisco:estreamer:data'",
+            "disabled": false,
+            "conf": {},
+            "description": "Short-circuit all events that are NOT of sourcetype cisco:estreamer:data",
+            "final": true
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Use the Parser function in K=V mode to re-write original events satisfying these conditions:\n* Keep all fields enumerated in the \"Fields To Keep\", regardless of their values.\n* Remove fields with no value.\n* Remove fields with value 'N/A'.\n* Remove fields with '0', '-' or ':' only.\n* Remove fields with value '[Uu]nknown'\n"
+            }
+          },
+          {
+            "id": "serde",
+            "filter": "true",
+            "conf": {
+              "mode": "reserialize",
+              "type": "kvp",
+              "srcField": "_raw",
+              "fields": [],
+              "keep": [
+                "dest_port",
+                "dest_ip",
+                "dest_bytes",
+                "src_port",
+                "web_app",
+                "src_ip",
+                "iface_ingress",
+                "fw_rule_reason",
+                "client_app",
+                "fw_rule_action",
+                "sec_zone_ingress",
+                "src_bytes",
+                "user_agent",
+                "http_response",
+                "fw_policy",
+                "ip_proto",
+                "dest_pkts",
+                "app_proto",
+                "fw_rule",
+                "sensor"
+              ],
+              "remove": [],
+              "fieldFilterExpr": "!(value.length==0 || value=='N/A' || value.match(/^[0\\-:]+$/) || value.toLowerCase()=='unknown')"
+            },
+            "description": "Rewrite events with required fields only."
+          }
+        ]
+      }
+    },
+    {
+      "id": "cribl_metrics_rollup",
+      "conf": {
+        "functions": [
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "This pipeline is configured by default to pre-process the CriblMetrics data (system internal metrics). The Rollup Metrics function is used to rollup all metrics to a 30s time window."
+            }
+          },
+          {
+            "id": "rollup_metrics",
+            "filter": "true",
+            "conf": {
+              "dimensions": [
+                "*"
+              ],
+              "timeWindow": "30s",
+              "gaugeRollup": "last"
+            }
+          },
+          {
+            "id": "eval",
+            "filter": "source === 'cribl' && _metric",
+            "conf": {
+              "add": [
+                {
+                  "name": "__inputId",
+                  "value": "'cribl:CriblMetrics'"
+                },
+                {
+                  "name": "_value",
+                  "value": "+_value"
+                }
+              ]
+            }
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Enable eval below to remove the sourcetype field from Cribl internal source type metrics. By default, internal source type metric events will set the sourcetype field equal to the reported source type. This can result in metric events being routed incorrectly. When enabled, the event_sourcetype dimension can be used to identify the reported source type."
+            }
+          },
+          {
+            "id": "eval",
+            "filter": "_metric && _metric.startsWith('cribl.logstream.sourcetype.')",
+            "disabled": true,
+            "conf": {
+              "remove": [
+                "sourcetype"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "devnull",
+      "conf": {
+        "functions": [
+          {
+            "id": "drop",
+            "disabled": false,
+            "filter": "true",
+            "conf": {}
+          }
+        ]
+      }
+    },
+    {
+      "id": "main",
+      "conf": {
+        "asyncFuncTimeout": 1000,
+        "functions": [
+          {
+            "id": "eval",
+            "disabled": false,
+            "filter": "true",
+            "conf": {
+              "add": [
+                {
+                  "name": "cribl",
+                  "value": "'yes'"
+                }
+              ],
+              "remove": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "palo_alto_traffic",
+      "conf": {
+        "functions": [
+          {
+            "id": "eval",
+            "filter": "sourcetype!='pan:traffic'",
+            "conf": {},
+            "description": "Short-circuit all events that are NOT sourcetype pan:traffic",
+            "final": true
+          },
+          {
+            "id": "regex_extract",
+            "filter": "true",
+            "conf": {
+              "regex": "/(?:[^,]*,){4}(?<__log_subtype>[^,]*),(?:[^,]*,){11}(?<__src_zone>[^,]*),(?<__dest_zone>[^,]*),(?:[^,]*,){11}(?<__transport>[^,]*),(?<__action>[^,]*),(?:[^,]*,){2}(?<__bytes_in>[^,]*)/",
+              "source": "_raw"
+            },
+            "description": "Extract subtype, src/dest zones, transport, action and bytes_in"
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Drop events of log_subtype=start as they often have incorrect app assignment. Log_subtype=end contain better information."
+            }
+          },
+          {
+            "id": "drop",
+            "filter": "__log_subtype=='start'",
+            "conf": {},
+            "description": "Drop events of log subtype of start."
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Sample traffic with 0 bytes received at 5:1\nSample traffic from trusted-trusted & action allowed at 10:1"
+            }
+          },
+          {
+            "id": "sampling",
+            "filter": "true",
+            "conf": {
+              "rules": [
+                {
+                  "filter": "__bytes_in==0",
+                  "rate": 5
+                },
+                {
+                  "filter": "__src_zone=='trusted' && __dest_zone=='trusted' && __action=='allow'",
+                  "rate": 10
+                }
+              ]
+            },
+            "description": "Sample traffic"
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Drop all date_* fields from each event. They're unreliable (non TZ aware) and are very rarely used."
+            }
+          },
+          {
+            "id": "eval",
+            "filter": "true",
+            "conf": {
+              "remove": [
+                "date_*"
+              ]
+            },
+            "description": "Drop fields that start with date_*"
+          }
+        ],
+        "output": "default",
+        "description": "Filter and Sample Palo Alto traffic events"
+      }
+    },
+    {
+      "id": "passthru",
+      "conf": {
+        "functions": []
+      }
+    },
+    {
+      "id": "prometheus_metrics",
+      "conf": {
+        "functions": [
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "This pipeline adds the `job` and `instance` dimensions some Grafana dashboards expect in metrics from Prometheus. Attach it as a pre-processing pipeline for the System Metrics source when it's being routed to a Prometheus destination."
+            }
+          },
+          {
+            "id": "eval",
+            "filter": "true",
+            "conf": {
+              "add": [
+                {
+                  "name": "job",
+                  "value": "'LogStream'"
+                },
+                {
+                  "name": "instance",
+                  "value": "host"
+                }
+              ],
+              "remove": [
+                "host"
+              ]
+            },
+            "description": "Adjust the `job` value below as needed. Some dashboards expect it to be set to 'node'."
+          },
+          {
+            "id": "publish_metrics",
+            "filter": "true",
+            "conf": {
+              "overwrite": false,
+              "dimensions": [
+                "job",
+                "instance"
+              ],
+              "removeMetrics": [],
+              "removeDimensions": [
+                "host"
+              ]
+            }
+          }
+        ],
+        "groups": {},
+        "output": "default",
+        "description": "Prepare Events headed to Prometheus"
+      }
+    },
+    {
+      "id": "wineventlogs",
+      "conf": {
+        "functions": [
+          {
+            "id": "eval",
+            "filter": "!(sourcetype=='WinEventLog:Security' || source=='WinEventLog:Security')",
+            "conf": {},
+            "description": "Short-circuit all events that are NOT of source or sourcetype WinEventLog:Security",
+            "final": true
+          },
+          {
+            "id": "regex_extract",
+            "filter": "true",
+            "conf": {
+              "regex": "/EventCode=(?<__eventCode>\\d+)/",
+              "source": "_raw"
+            },
+            "description": "Extract EventCode field"
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Drop Process Start & End emitted by Splunk Universal Forwarder process"
+            }
+          },
+          {
+            "id": "drop",
+            "filter": "(__eventCode=='4688' || __eventCode=='4689') && _raw.indexOf('SplunkUniversalForwarder') > -1",
+            "disabled": false,
+            "conf": {},
+            "description": "Drop Process Start & End for processes Splunk creates"
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Drop Repetitious Token Assignment Events"
+            }
+          },
+          {
+            "id": "drop",
+            "filter": "__eventCode=='4703' && /Security ID:\\s*NT AUTHORITY.SYSTEM/.test(_raw) && /SeAssignPrimaryTokenPrivilege\\s*SeIncreaseQuotaPrivilege\\s*SeSecurityPrivilege\\s*SeTakeOwnershipPrivilege\\s*SeLoadDriverPrivilege\\s*SeSystemtimePrivilege\\s*SeBackupPrivilege\\s*SeRestorePrivilege\\s*SeShutdownPrivilege\\s*SeSystemEnvironmentPrivilege\\s*SeUndockPrivilege\\s*SeManageVolumePrivilege/m.test(_raw)",
+            "disabled": false,
+            "conf": {},
+            "description": "Drop Repetitious Token Assignment Events",
+            "final": true
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Remove event descriptions"
+            }
+          },
+          {
+            "id": "mask",
+            "filter": "__eventCode=='4624' ||  __eventCode=='4688'",
+            "conf": {
+              "rules": [
+                {
+                  "matchRegex": "/This event is generated[\\s\\S]+$/m",
+                  "replaceExpr": "'DESCRIPTION REMOVED'"
+                },
+                {
+                  "matchRegex": "/(Process\\sCommand\\sLine:)([\\s\\S]+)$/",
+                  "replaceExpr": "`${g1} REMOVED`"
+                }
+              ],
+              "fields": [
+                "_raw"
+              ]
+            },
+            "description": "Remove event descriptions"
+          },
+          {
+            "id": "comment",
+            "filter": "true",
+            "conf": {
+              "comment": "Remove timestamps"
+            }
+          },
+          {
+            "id": "mask",
+            "filter": "true",
+            "conf": {
+              "rules": [
+                {
+                  "matchRegex": "/(.+[\\r\\n]+)(LogName)/m",
+                  "replaceExpr": "g2"
+                }
+              ],
+              "fields": [
+                "_raw"
+              ]
+            },
+            "description": "Drop Timestamp"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kubernetes_logs",
+      "conf": {
+        "functions": [
+          {
+            "id": "eval",
+            "filter": "true",
+            "conf": {
+              "add": [
+                {
+                  "name": "_raw",
+                  "value": "_raw.replace(/(^|([\\n\\r])+)\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{1,9}\\S+\\s/gm, '$2')"
+                }
+              ]
+            },
+            "description": "Removes timestamp prefixes from events broken by the \"Kubernetes Logs\" Event Breaker. Use as a Pre-processing Pipeline when the Timestamp option is enabled."
+          }
+        ]
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "in_system_metrics",
+      "disabled": false,
+      "sendToRoutes": false,
+      "type": "system_metrics",
+      "persistence": {
+        "enable": true,
+        "maxDataSize": "100MB"
+      },
+      "connections": [
+        {
+          "output": "devnull"
+        }
+      ],
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152923,
+        "metrics": {
+          "count": 0,
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "in_system_state",
+      "disabled": false,
+      "sendToRoutes": false,
+      "type": "system_state",
+      "persistence": {
+        "enable": true,
+        "maxDataSize": "100MB"
+      },
+      "connections": [
+        {
+          "output": "devnull"
+        }
+      ],
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152923,
+        "metrics": {
+          "count": 0,
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "in_windows_metrics",
+      "disabled": false,
+      "sendToRoutes": false,
+      "type": "windows_metrics",
+      "persistence": {
+        "enable": true,
+        "maxDataSize": "100MB"
+      },
+      "connections": [
+        {
+          "output": "devnull"
+        }
+      ],
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152923,
+        "metrics": {
+          "count": 1,
+          "items": [
+            {
+              "name": "This platform does not support Windows Metrics collectors",
+              "status": {
+                "health": 0,
+                "timestamp": 1791575152923,
+                "metrics": {
+                  "count": 0,
+                  "items": []
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "in_kube_metrics",
+      "disabled": true,
+      "sendToRoutes": false,
+      "type": "kube_metrics",
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152923,
+        "metrics": {
+          "count": 0,
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "in_kube_logs",
+      "disabled": true,
+      "sendToRoutes": false,
+      "type": "kube_logs",
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152923,
+        "metrics": {
+          "count": 0,
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "in_kube_events",
+      "disabled": true,
+      "sendToRoutes": false,
+      "type": "kube_events",
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152923,
+        "metrics": {
+          "count": 0,
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "in_file_auto",
+      "type": "file",
+      "disabled": true,
+      "sendToRoutes": false,
+      "mode": "auto",
+      "includeUnidentifiableBinary": false,
+      "tailOnly": true,
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152924,
+        "metrics": {
+          "count": 0,
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "in_file_varlog",
+      "type": "file",
+      "disabled": true,
+      "sendToRoutes": false,
+      "mode": "manual",
+      "interval": 10,
+      "path": "/var/log/",
+      "includeUnidentifiableBinary": false,
+      "filenames": [
+        "!*/lastlog",
+        "!*.journal*",
+        "*"
+      ],
+      "tailOnly": true,
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152924,
+        "metrics": {
+          "count": 0,
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "in_journal_local",
+      "disabled": true,
+      "sendToRoutes": false,
+      "path": "$CRIBL_EDGE_FS_ROOT/var/log/journal/$MACHINE_ID",
+      "journals": [
+        "system"
+      ],
+      "type": "journal_files",
+      "currentBoot": true,
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152924,
+        "metrics": {
+          "count": 0,
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "CriblLogs",
+      "type": "cribl",
+      "disabled": true,
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152924,
+        "metrics": {
+          "buffered": 0,
+          "dropped": 0,
+          "received": 0
+        }
+      }
+    },
+    {
+      "id": "CriblMetrics",
+      "type": "criblmetrics",
+      "disabled": true,
+      "pipeline": "cribl_metrics_rollup",
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152924,
+        "metrics": {
+          "buffered": 0,
+          "dropped": 0,
+          "received": 0
+        }
+      }
+    },
+    {
+      "id": "in_win_event_logs",
+      "disabled": true,
+      "sendToRoutes": false,
+      "pqEnabled": false,
+      "streamtags": [],
+      "logNames": [
+        "Security",
+        "Application",
+        "System"
+      ],
+      "readMode": "newest",
+      "interval": 10,
+      "batchSize": 500,
+      "type": "win_event_logs",
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575152924,
+        "metrics": {
+          "count": 0,
+          "items": []
+        }
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "id": "default",
+      "type": "default",
+      "defaultId": "devnull",
+      "status": {}
+    },
+    {
+      "id": "devnull",
+      "type": "devnull",
+      "status": {
+        "health": "Green",
+        "timestamp": 1791575153001,
+        "metrics": {}
+      }
+    }
+  ],
+  "packs": []
+}

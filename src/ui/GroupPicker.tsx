@@ -10,13 +10,13 @@ interface Props {
 export default function GroupPicker({ groups, value, onChange }: Props) {
   const items = groups.map((g) => ({
     id: g.id,
-    label: g.name === g.id ? g.id : `${g.name} (${g.id})`,
+    label: `${g.name === g.id ? g.id : `${g.name} (${g.id})`}${g.kind === 'fleet' ? ' · Edge Fleet' : ''}`,
   }));
   return (
     <SelectField
-      label="Worker Group"
+      label="Group"
       layout="horizontal"
-      placeholder="Select a Worker Group"
+      placeholder="Select a Worker Group or Fleet"
       items={items}
       value={value}
       onChange={(key) => key !== null && onChange(String(key))}

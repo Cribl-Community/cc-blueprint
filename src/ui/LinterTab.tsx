@@ -120,7 +120,7 @@ function RuleSettings({ api }: { api: RuleSettingsApi }) {
     <details className="rule-reference">
       <summary>{`Rules and settings (${RULES.length} rules${off.size ? `, ${off.size} off` : ''}${changed ? `, ${changed} changed for this group` : ''})`}</summary>
       {api.error && <Alert appearance="danger">{api.error}</Alert>}
-      <Text>Turn rules off or change their severity for this Worker Group. Settings are shared with everyone who uses Blueprint.</Text>
+      <Text>Turn rules off or change their severity for this Worker Group or Fleet. Settings are shared with everyone who uses Blueprint.</Text>
       <dl>
         {RULES.map((r) => {
           const setting = api.doc.rules[r.id];

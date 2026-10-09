@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { EXPECTED_FINDINGS } from '../../demo/seed';
-import { demoRaw, destination, inventory, pipeline, route, source, workspaceCleanRaw, workspaceDefaultRaw } from '../../test/inventory';
+import {
+  demoRaw,
+  destination,
+  fleetDefaultRaw,
+  inventory,
+  pipeline,
+  route,
+  source,
+  workspaceCleanRaw,
+  workspaceDefaultRaw,
+} from '../../test/inventory';
 import { buildGraph } from '../model/graph';
 import { normalize } from '../model/normalize';
 import type { Inventory, PipelineFunction } from '../model/types';
@@ -378,7 +388,9 @@ describe('lint', () => {
   it('finds nothing in a fresh group', () => {
     const inv = normalize(workspaceCleanRaw);
     expect(inv.routes).toHaveLength(1);
-    expect(inv.pipelines.map((p) => p.id).sort()).toEqual([...BUILTIN_PIPELINES].sort());
+    // The built-in list is exactly what ships in a fresh Worker Group plus a fresh Edge Fleet.
+    const shipped = new Set([...inv.pipelines, ...normalize(fleetDefaultRaw).pipelines].map((p) => p.id));
+    expect([...shipped].sort()).toEqual([...BUILTIN_PIPELINES].sort());
     expect(lint(inv, buildGraph(inv))).toEqual([]);
   });
 

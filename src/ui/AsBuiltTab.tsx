@@ -40,6 +40,8 @@ interface Props {
   suppressed: SuppressedFinding[];
   health: HealthState;
   throughput: ThroughputState;
+  /** Connected nodes, labelled for the group's kind; count undefined until read. */
+  nodes: { label: string; count?: number };
 }
 
 const yesNo = (v: unknown) => (v ? 'Yes' : 'No');
@@ -264,7 +266,7 @@ function nodeCounts(inv: Inventory, t: Throughput): Map<string, number> {
   ]);
 }
 
-export default function AsBuiltTab({ inventory, graph, findings, suppressed, health, throughput }: Props) {
+export default function AsBuiltTab({ inventory, graph, findings, suppressed, health, throughput, nodes }: Props) {
   const [showCounts, setShowCounts] = useState(false);
   const counts = useMemo(
     () => (throughput.throughput ? nodeCounts(inventory, throughput.throughput) : undefined),
@@ -288,6 +290,9 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
     <div className="tab-body">
       <div className="toolbar">
         <div className="stats">
+          {nodes.count !== undefined && (
+            <Stat label={nodes.label} value={nodes.count} detail={nodes.count === 0 ? 'none connected' : 'connected'} />
+          )}
           <Stat label="Sources" value={s.sources.total} detail={`${s.sources.enabled} enabled${s.sources.quickConnect ? ` · ${s.sources.quickConnect} QuickConnect` : ''}`} />
           <Stat label="Routes" value={s.routes.total} detail={`${s.routes.enabled} enabled`} />
           <Stat label="Pipelines" value={s.pipelines} />

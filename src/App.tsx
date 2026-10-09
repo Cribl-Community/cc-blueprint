@@ -13,6 +13,7 @@ import { useRuleSettings } from './ui/useRuleSettings';
 import { useSuppressions } from './ui/useSuppressions';
 import { useHealth } from './ui/useHealth';
 import { useInventory } from './ui/useInventory';
+import { useNodeCount } from './ui/useNodeCount';
 import { useThroughput } from './ui/useThroughput';
 
 // Dev-only tools (demo seeder, Phase 0 probe); the DEV guard lets Vite drop them from production.
@@ -36,6 +37,7 @@ function App() {
   const [inv, reloadInventory] = useInventory(groupId);
   const health = useHealth(groupId, inv.state === 'ready' ? inv.loadedAt : null);
   const throughput = useThroughput(groupId, inv.state === 'ready' ? inv.loadedAt : null);
+  const nodeCount = useNodeCount(groupId, inv.state === 'ready' ? inv.loadedAt : null);
   const suppressions = useSuppressions(groupId);
   const ruleSettings = useRuleSettings(groupId);
   // Rule settings apply before anything else, so every tab, count, and export follows them.
@@ -91,7 +93,7 @@ function App() {
         {load.state === 'error' && (
           <Alert
             appearance="danger"
-            title="Couldn't load Worker Groups"
+            title="Couldn't load Worker Groups and Fleets"
             action={{
               label: 'Retry',
               onClick: () => {
@@ -105,7 +107,11 @@ function App() {
         )}
 
         {load.state === 'ready' && load.groups.length === 0 && (
-          <EmptyState theme={theme} title="No Stream Worker Groups" description="This workspace has no Stream Worker Groups you can read." />
+          <EmptyState
+            theme={theme}
+            title="No Worker Groups or Fleets"
+            description="This workspace has no Stream Worker Groups or Edge Fleets you can read."
+          />
         )}
 
         {group && (
@@ -134,7 +140,7 @@ function App() {
                   {w}
                 </Alert>
               ))}
-            {inv.state === 'ready' && tab === 'asbuilt' && <AsBuiltTab inventory={inv.inventory} graph={inv.graph} findings={split.active} suppressed={split.suppressed} health={health} throughput={throughput} />}
+            {inv.state === 'ready' && tab === 'asbuilt' && <AsBuiltTab inventory={inv.inventory} graph={inv.graph} findings={split.active} suppressed={split.suppressed} health={health} throughput={throughput} nodes={{ label: group.kind === 'fleet' ? 'Edge Nodes' : 'Worker Nodes', count: nodeCount }} />}
             {inv.state === 'ready' && tab === 'linter' && (
               <LinterTab
                 inventory={inv.inventory}

@@ -12,4 +12,6 @@ export const BUILTIN_PIPELINES = new Set([
   'cisco_estreamer',
   'palo_alto_traffic',
   'wineventlogs',
+  // Shipped with Edge Fleets.
+  'kubernetes_logs',
 ]);

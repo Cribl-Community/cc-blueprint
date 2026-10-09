@@ -26,3 +26,6 @@ policies:
   # Last-hour event counts (read-only query; POST only carries the query). Leader-level, so no group prefix.
   - object: '/system/metrics/query'
     actions: ['POST']
+  # Connected Worker/Edge Node count for the As-Built summary.
+  - object: '/master/summary/workers'
+    actions: ['GET']
