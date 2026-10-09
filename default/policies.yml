@@ -1,0 +1,20 @@
+# Product API access declaration. Admins see these at install time; grants apply app-wide.
+# Keep this in sync with the "Cribl API Endpoints Used" table in README.md.
+policies:
+  - object: '/master/groups'
+    actions: ['GET']
+  - object: '/master/groups/*'
+    actions: ['GET']
+  - object: '/m/:gid/routes'
+    actions: ['GET']
+  - object: '/m/:gid/routes/*'
+    # PATCH: the L01 fix-it reorders the Routing table after an explicit preview and confirm.
+    actions: ['GET', 'PATCH']
+  - object: '/m/:gid/pipelines'
+    actions: ['GET']
+  - object: '/m/:gid/system/inputs'
+    actions: ['GET']
+  - object: '/m/:gid/system/outputs'
+    actions: ['GET']
+  - object: '/m/:gid/packs'
+    actions: ['GET']
