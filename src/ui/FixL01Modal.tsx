@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Button, Modal, Text } from '@capra/core';
 import { applyRouteOrder } from '../api/routes';
+import { diffReach } from '../diff/diff';
 import type { L01FixPlan } from '../fix/l01';
+import type { Inventory } from '../model/types';
+import ReachChanges from './ReachChanges';
 
 interface Props {
-  group: string;
+  inventory: Inventory;
   plan: L01FixPlan | null;
   onClose: () => void;
   /** Called when the success dialog is closed, to reload the group's config. */
@@ -35,8 +38,14 @@ function Order({ title, routes, movedIds, focusId }: { title: string; routes: L0
   );
 }
 
-export default function FixL01Modal({ group, plan, onClose, onApplied }: Props) {
+export default function FixL01Modal({ inventory, plan, onClose, onApplied }: Props) {
+  const group = inventory.group;
   const [status, setStatus] = useState<Status>({ state: 'idle' });
+  // What the reorder changes for each Source, read from the Route filters.
+  const reach = useMemo(
+    () => (plan ? diffReach(inventory, { ...inventory, routes: plan.after }) : []),
+    [inventory, plan],
+  );
   const close = () => {
     const applied = status.state === 'done';
     setStatus({ state: 'idle' });
@@ -92,6 +101,10 @@ export default function FixL01Modal({ group, plan, onClose, onApplied }: Props) 
               <div className="order-grid">
                 <Order title="Before" routes={plan.before} movedIds={movedIds} focusId={plan.shadowingId} />
                 <Order title="After" routes={plan.after} movedIds={movedIds} focusId={plan.shadowingId} />
+              </div>
+              <div className="fix-reach">
+                <Text as="h3" variant="heading">What changes for each Source</Text>
+                <ReachChanges reach={reach} />
               </div>
               {plan.takesOver.length > 0 && (
                 <Alert appearance="info" title="Routes that will start matching">

@@ -1,6 +1,6 @@
 import { Tag, Text } from '@capra/core';
-import type { ChangeSet, DiffKind, ReachChange, RouteReachDelta } from '../diff/diff';
-import type { ReachState } from '../model/reach';
+import type { ChangeSet, DiffKind } from '../diff/diff';
+import ReachChanges from './ReachChanges';
 import type { Inventory } from '../model/types';
 
 interface Props {
@@ -34,54 +34,6 @@ function RouteOrder({ ids, inv, title, moved }: { ids: string[]; inv: Inventory;
         ))}
       </ol>
     </div>
-  );
-}
-
-const REACH_STATE: Record<ReachState, string> = {
-  yes: 'definite match',
-  maybe: 'depends on event content',
-  no: 'filter no longer matches',
-  unreached: 'taken by an earlier Final route',
-  disabled: 'route disabled',
-};
-
-const deltaList = (deltas: RouteReachDelta[], why: (d: RouteReachDelta) => string) =>
-  deltas.map((d) => `${d.label} (${why(d)})`).join(', ');
-
-function ReachChanges({ reach }: { reach: ReachChange[] }) {
-  return (
-    <section className="section">
-      <Text as="h3" variant="heading">Reach changes</Text>
-      {reach.length === 0 ? (
-        <Text>No Source gained or lost a Route. Read from the Route filters, so event-dependent filters count as reachable.</Text>
-      ) : (
-        <ul className="diff-list">
-          {reach.map((c) => (
-            <li key={c.sourceId}>
-              <strong>{c.sourceId}</strong>
-              <ul className="reach-deltas">
-                {c.gained.length > 0 && (
-                  <li>
-                    <Tag color="success">Now reaches</Tag> {deltaList(c.gained, (d) => REACH_STATE[d.after])}
-                  </li>
-                )}
-                {c.lost.length > 0 && (
-                  <li>
-                    <Tag color="danger">No longer reaches</Tag> {deltaList(c.lost, (d) => REACH_STATE[d.after])}
-                  </li>
-                )}
-                {c.changed.length > 0 && (
-                  <li>
-                    <Tag color="warning">Match changed</Tag>{' '}
-                    {deltaList(c.changed, (d) => `${REACH_STATE[d.before]} → ${REACH_STATE[d.after]}`)}
-                  </li>
-                )}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }
 
@@ -124,7 +76,12 @@ export default function DiffView({ diff, before, after, beforeLabel, afterLabel 
         </section>
       )}
 
-      {(routingChanged || diff.reach.length > 0) && <ReachChanges reach={diff.reach} />}
+      {(routingChanged || diff.reach.length > 0) && (
+        <section className="section">
+          <Text as="h3" variant="heading">Reach changes</Text>
+          <ReachChanges reach={diff.reach} />
+        </section>
+      )}
 
       {KINDS.map(({ key, title }) => {
         const k = diff.kinds[key];

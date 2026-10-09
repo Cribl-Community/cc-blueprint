@@ -241,7 +241,7 @@ export default function LinterTab({ inventory, graph, findings, suppressions, on
       </details>
 
       <ObjectDrawer target={open} inventory={inventory} graph={graph} onClose={() => setOpen(null)} />
-      <FixL01Modal group={inventory.group} plan={fixPlan} onClose={() => setFixPlan(null)} onApplied={onConfigChanged} />
+      <FixL01Modal inventory={inventory} plan={fixPlan} onClose={() => setFixPlan(null)} onApplied={onConfigChanged} />
     </div>
   );
 }
