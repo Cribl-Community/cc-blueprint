@@ -18,6 +18,12 @@ export interface Throughput {
 export const routeKey = (routeId: string, inputId: string) => `${routeId}\u0000${inputId}`;
 
 const WINDOW_MS = 60 * 60 * 1000;
+/**
+ * Cribl aligns buckets to the clock, so a 1-hour bucket over 19:30–20:30 comes back as two whole
+ * hours. Five-minute buckets aligned to the window, keeping only those starting inside it, give the
+ * last hour to within five minutes.
+ */
+const BUCKET_S = 300;
 
 /** One aggregation's rows, as returned under `results`. Shape varies, so parsing is lenient. */
 type Row = Record<string, unknown>;
@@ -26,12 +32,14 @@ type Row = Record<string, unknown>;
  * Sums `alias` per split key across rows (one row per time bucket and split value). Falls back to
  * the first numeric non-dimension field when the alias isn't present.
  */
-export function sumRows(rows: unknown, splitBys: string[], alias: string): Map<string, number> {
+export function sumRows(rows: unknown, splitBys: string[], alias: string, sinceSeconds = 0): Map<string, number> {
   const out = new Map<string, number>();
   if (!Array.isArray(rows)) return out;
   for (const r of rows as Row[]) {
     if (!r || typeof r !== 'object') continue;
+    // Rows without every split field are totals across the split; buckets before the window are dropped.
     if (splitBys.some((s) => typeof r[s] !== 'string')) continue;
+    if (typeof r.starttime === 'number' && r.starttime < sinceSeconds) continue;
     let value = r[alias];
     if (typeof value !== 'number') {
       value = Object.entries(r).find(([k, v]) => typeof v === 'number' && !k.startsWith('_') && !splitBys.includes(k))?.[1];
@@ -52,7 +60,7 @@ export function metricQuery(group: string, metric: string, splitBys: string[], e
     aggs: {
       aggregations: [`sum(${JSON.stringify(metric)}).as("value")`],
       splitBys,
-      timeWindowSeconds: Math.round((latest - earliest) / 1000),
+      timeWindowSeconds: BUCKET_S,
     },
   };
 }
@@ -68,10 +76,13 @@ async function query(body: unknown, signal?: AbortSignal): Promise<unknown> {
   return ((await res.json()) as { results?: unknown }).results;
 }
 
+/** Window start, aligned down to a bucket boundary, in milliseconds. */
+export const windowStart = (now: number) => Math.floor((now - WINDOW_MS) / (BUCKET_S * 1000)) * BUCKET_S * 1000;
+
 export async function fetchThroughput(group: string, signal?: AbortSignal, now = Date.now()): Promise<Throughput> {
-  const earliest = now - WINDOW_MS;
+  const earliest = windowStart(now);
   const run = async (metric: string, splitBys: string[]) =>
-    sumRows(await query(metricQuery(group, metric, splitBys, earliest, now), signal), splitBys, 'value');
+    sumRows(await query(metricQuery(group, metric, splitBys, earliest, now), signal), splitBys, 'value', earliest / 1000);
   const [sources, destinations, routes, routeBySource] = await Promise.all([
     run('total.in_events', ['input']),
     run('total.out_events', ['output']),
