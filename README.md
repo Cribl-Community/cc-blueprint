@@ -15,6 +15,7 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
   * **As-Built.** Inventory of Sources, Routes (in evaluation order), Pipelines, Destinations, and Packs.
     * A Source → Route → Pipeline → Destination diagram that shows QuickConnect paths. Each object is outlined by its worst lint finding.
     * A Source × Route reach matrix read from the Route filters (never executed): which Routes each Source's events can reach, where a Final Route stops them, and which Routes no Source reaches.
+    * Worker and Edge Nodes: hostname, status, OS, Cribl and config version, last seen, and resources, with a warning when nodes run different config versions or report Sources and Destinations the config doesn't contain.
     * Live health: each Source and Destination in the diagram shows a green, yellow, or red dot from Cribl's status API, and anything not healthy is listed with its error.
     * Live events: last-hour event counts on Sources, Routes, and Destinations, and in every reach-matrix cell, so a "?" becomes evidence. Cells where events arrived although the filters say they can't are flagged.
     * A Source → Destination matrix: where each Source's data ends up, following Routes, QuickConnect, the default alias, and Output Router rules.
@@ -74,7 +75,7 @@ Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-co
 
 ### If The App Is Not Yet In The Cribl Marketplace
 1. Open the repository's **Releases** page.
-2. Download `cc-blueprint-1.0.14.tgz` (or the version you want).
+2. Download `cc-blueprint-1.0.15.tgz` (or the version you want).
 3. In Cribl, go to **Apps > Add App > Import from File**.
 4. Upload the `.tgz` file.
 5. Review the app details and complete installation. No other steps are needed.
@@ -130,6 +131,7 @@ Every API call runs as the signed-in user, with that user's own Cribl permission
 | GET | `/api/v1/m/{group}/system/outputs` | Destinations, backpressure settings, and the `default` alias |
 | GET | `/api/v1/m/{group}/packs` | Installed packs |
 | GET | `/api/v1/master/summary/workers` | Count of connected Worker or Edge Nodes in the selected group |
+| GET | `/api/v1/master/workers` | Up to 100 Worker or Edge Nodes in the selected group: hostname, status, OS, Cribl and config version, resources. Network addresses and environment variables are not shown |
 | GET | `/api/v1/m/{group}/system/status/inputs` | Live health of Sources, shown on the diagram |
 | GET | `/api/v1/m/{group}/system/status/outputs` | Live health of Destinations, shown on the diagram |
 | POST | `/api/v1/system/metrics/query` | Read-only: last-hour event counts per Source, Route, Destination, and Source × Route, filtered to the group |
@@ -174,7 +176,7 @@ This app is built by Steve Hunger (Presidio) for the CriblCon 2026 App Hackathon
 
 * Stream Worker Groups and Edge Fleets. Search and Outpost groups are out of scope.
 * Subfleets are listed like any Fleet, but inherited config isn't shown separately yet: Blueprint documents what the API returns for each Fleet.
-* Edge Nodes are counted, not inventoried individually.
+* Up to 100 nodes are listed per group; the count covers all of them. Config-version drift is detected between nodes, not against the group's deployed version, which Fleets don't report.
 * Collector jobs are not read, so a pipeline used only by a Collector is reported as an orphan (L03). The fix text says so.
 * For the same reason, a Route fed only by a Collector is reported as reached by no Source (L09) and shows no reach in the matrix. Suppress the finding with that reason.
 * Route reach is read from filters without running them. Only `__inputId` and literal Source metadata fields are known; filters on event content show as "maybe", and `__inputId` is treated as unknown for `cribl_http`/`cribl_tcp` Sources, which relay events from other Cribl nodes.

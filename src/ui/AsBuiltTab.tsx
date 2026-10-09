@@ -29,7 +29,9 @@ import { downloadText } from './download';
 import FlowDiagram from './FlowDiagram';
 import { routeKey, type Throughput } from '../api/metrics';
 import { compact } from './format';
+import { configVersions, unknownObjects, type NodeInfo } from '../api/nodes';
 import type { HealthState } from './useHealth';
+import type { NodesState } from './useNodes';
 import type { ThroughputState } from './useThroughput';
 
 interface Props {
@@ -40,8 +42,8 @@ interface Props {
   suppressed: SuppressedFinding[];
   health: HealthState;
   throughput: ThroughputState;
-  /** Connected nodes, labelled for the group's kind; count undefined until read. */
-  nodes: { label: string; count?: number };
+  /** Worker or Edge Nodes, labelled for the group's kind. */
+  nodes: NodesState & { label: string };
 }
 
 const yesNo = (v: unknown) => (v ? 'Yes' : 'No');
@@ -215,6 +217,67 @@ function DeliveryTable({ matrix }: { matrix: DeliveryMatrix }) {
   );
 }
 
+type NodeRow = NodeInfo & Record<string, unknown>;
+
+const nodeColumns = defineColumns<NodeRow>([
+  { id: 'hostname', label: 'Hostname' },
+  { id: 'status', label: 'Status', render: (v) => <Tag color={v === 'healthy' ? 'success' : 'warning'}>{String(v)}</Tag> },
+  { id: 'connected', label: 'Connected', render: yesNo },
+  { id: 'os', label: 'OS' },
+  { id: 'criblVersion', label: 'Cribl', render: (v) => (v ? String(v).split('-')[0] : '—') },
+  { id: 'configVersion', label: 'Config version', render: (v) => (v ? mono(v) : '—') },
+  { id: 'lastSeen', label: 'Last seen', render: (v) => (v instanceof Date ? v.toLocaleString() : '—') },
+  {
+    id: 'cpus',
+    label: 'Resources',
+    render: (_v, row) =>
+      [row.cpus && `${row.cpus} CPU`, row.memoryGiB && `${row.memoryGiB} GiB`, row.diskFreePct !== undefined && `${row.diskFreePct}% disk free`]
+        .filter(Boolean)
+        .join(' · ') || '—',
+  },
+]);
+
+function NodesSection({ nodes, inventory }: { nodes: Props['nodes']; inventory: Inventory }) {
+  if (nodes.error) {
+    return (
+      <section className="section">
+        <Text as="h2" variant="heading">{nodes.label}</Text>
+        <Text variant="body-sm-normal">{`Node details unavailable: ${nodes.error}`}</Text>
+      </section>
+    );
+  }
+  if (!nodes.nodes) return null;
+  const list = nodes.nodes;
+  const versions = configVersions(list);
+  const known = new Set([
+    ...inventory.sources.map((s) => `source ${s.type}:${s.id}`),
+    ...inventory.destinations.map((d) => `destination ${d.type}:${d.id}`),
+  ]);
+  const unknown = unknownObjects(list, known);
+  const total = Math.max(nodes.count ?? 0, list.length);
+  return (
+    <Section title={nodes.label} count={total}>
+      {versions.length > 1 && (
+        <Alert appearance="warning" title="Nodes run different config versions">
+          {`${versions.map(([v, n]) => `${v} on ${n} node${n === 1 ? '' : 's'}`).join(', ')}. Deploy the latest config so every node runs the same one.`}
+        </Alert>
+      )}
+      {unknown.length > 0 && (
+        <Alert appearance="info" title="Nodes report objects that aren't in this config">
+          {`${unknown.join(', ')}. The nodes are probably running config that hasn't been deployed since it changed, or local changes.`}
+        </Alert>
+      )}
+      <Table
+        items={list as NodeRow[]}
+        columns={nodeColumns}
+        visibleColumns={['hostname', 'status', 'connected', 'os', 'criblVersion', 'configVersion', 'lastSeen', 'cpus']}
+        density="compact"
+      />
+      {total > list.length && <Text variant="body-sm-normal">{`Showing the first ${list.length} of ${total} nodes.`}</Text>}
+    </Section>
+  );
+}
+
 function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return (
     <section className="section">
@@ -343,6 +406,7 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
         </div>
       </section>
 
+      <NodesSection nodes={nodes} inventory={inventory} />
       <Section title="Routes" count={report.routes.length}>
         <Table
           items={report.routes as Rows<RouteRow>}

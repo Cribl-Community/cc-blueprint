@@ -29,3 +29,6 @@ policies:
   # Connected Worker/Edge Node count for the As-Built summary.
   - object: '/master/summary/workers'
     actions: ['GET']
+  # Worker/Edge Node details for the As-Built nodes table (read-only).
+  - object: '/master/workers'
+    actions: ['GET']
