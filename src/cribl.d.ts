@@ -13,3 +13,6 @@ interface Window {
   readonly CRIBL_BASE_PATH: string;
   readonly getCriblUser: () => Promise<CriblUser>;
 }
+
+/** package.json version, injected at build time by vite.config.ts. */
+declare const __APP_VERSION__: string;

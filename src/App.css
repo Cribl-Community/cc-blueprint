@@ -27,6 +27,12 @@
   gap: token('spacing.md');
 }
 
+.app-footer {
+  padding: 0 token('spacing.xl') token('spacing.lg');
+  font: token('typography.body.xs.normal');
+  color: token('color.foreground.subtle');
+}
+
 .app-body {
   display: flex;
   flex-direction: column;

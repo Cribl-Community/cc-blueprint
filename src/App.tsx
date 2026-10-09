@@ -144,6 +144,10 @@ function App() {
           </div>
         )}
       </main>
+
+      <footer className="app-footer">
+        {`Cribl Blueprint v${__APP_VERSION__}${import.meta.env.DEV ? ' · Live Preview' : ''}`}
+      </footer>
     </div>
   );
 }

@@ -83,7 +83,14 @@ const injectScriptFromQueryPlugin = () => {
   };
 };
 
+// Shown in the app footer. CI tags are only pushed after package.json is bumped to match, and the
+// build runs before the packager stamps the tag's version, so this is the version being released.
+const appVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version as string
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [react(), packageEndpointPlugin(), injectScriptFromQueryPlugin(), backendWatchPlugin(), backendPreviewPlugin()],
   base: './',
   server: {
