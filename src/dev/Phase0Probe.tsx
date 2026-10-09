@@ -79,6 +79,39 @@ async function probeLive(group: string, log: Log) {
   log(`Downloaded blueprint-live-${group}.json`);
 }
 
+/**
+ * Edge Fleet discovery: the raw fleet list (including any subfleet/inheritance fields), each fleet's
+ * config through the same `/m/<id>/` endpoints Stream uses, its Edge Nodes, status, and whether its
+ * metrics reach the leader. Caps at 5 fleets and 50 nodes per fleet to keep the file small.
+ */
+async function probeFleets(log: Log) {
+  const out: Record<string, unknown> = { capturedAt: new Date().toISOString() };
+  const record = (label: string, r: unknown) => {
+    out[label] = r;
+    log(`${label} -> ${(r as { status?: number }).status ?? ''}`);
+  };
+  const groups = await getJson('/master/groups?product=edge&fields=git.localChanges');
+  record('GET /master/groups?product=edge', groups);
+  record('GET /master/groups (all products)', await getJson('/master/groups'));
+  const items = ((groups.body as { items?: { id: string }[] })?.items ?? []).slice(0, 5);
+  const now = Date.now();
+  for (const { id } of items) {
+    const g = `/m/${encodeURIComponent(id)}`;
+    for (const ep of CONFIG_ENDPOINTS) record(`${id}: GET ${g}/${ep}`, await getJson(`${g}/${ep}`));
+    record(`${id}: GET ${g}/system/status/inputs`, await getJson(`${g}/system/status/inputs`));
+    record(`${id}: GET ${g}/system/status/outputs`, await getJson(`${g}/system/status/outputs`));
+    const filterExp = encodeURIComponent(`group=='${id}'`);
+    record(`${id}: GET /master/workers`, await getJson(`/master/workers?filterExp=${filterExp}&limit=50`));
+    record(`${id}: GET /master/summary/workers`, await getJson(`/master/summary/workers?filterExp=${filterExp}`));
+    record(
+      `${id}: POST /system/metrics/query total.in_events by input`,
+      await postJson('/system/metrics/query', metricQuery(id, 'total.in_events', ['input'], now - 3600_000, now)),
+    );
+  }
+  download('blueprint-fleets.json', out);
+  log(`Downloaded blueprint-fleets.json (${items.length} fleet${items.length === 1 ? '' : 's'})`);
+}
+
 async function kvStatus(method: string, key: string, body?: string, contentType = 'text/plain') {
   const res = await fetch(`${window.CRIBL_API_URL}/kvstore/${key}`, {
     method,
@@ -203,6 +236,9 @@ export default function Phase0Probe() {
       <div style={{ display: 'flex', gap: 8 }}>
         <Button variant="primary" disabled={!group || busy} onClick={run(() => dumpGroup(group, log))}>
           Download raw config
+        </Button>
+        <Button disabled={busy} onClick={run(() => probeFleets(log))}>
+          Probe Edge Fleets
         </Button>
         <Button disabled={!group || busy} onClick={run(() => probeLive(group, log))}>
           Probe live status and metrics
