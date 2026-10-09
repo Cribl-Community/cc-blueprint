@@ -17,10 +17,9 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
     * A Source × Route reach matrix read from the Route filters (never executed): which Routes each Source's events can reach, where a Final Route stops them, and which Routes no Source reaches.
     * A Source → Destination matrix: where each Source's data ends up, following Routes, QuickConnect, the default alias, and Output Router rules.
     * One-click Markdown export: a handoff document with a Mermaid flowchart, every table, and the findings.
-  * **Change review.** Snapshot diffs and the L01 fix-it preview show, per Source, which Routes it gains or loses.
   * **Linter.** Ten rules with severity, evidence, and a one-line fix. Findings can be suppressed with a reason, and suppressions persist for the whole team.
   * **L01 fix-it.** Reorders a shadowing route after a before/after preview and explicit confirmation. The change is left uncommitted for review.
-  * **Snapshots.** Labelled point-in-time captures. Compare any two, or a snapshot against the current config, with route-order and field-level changes.
+  * **Snapshots.** Labelled point-in-time captures. Compare any two, or a snapshot against the current config, with route-order and field-level changes, plus which Routes each Source gains or loses. The L01 fix-it preview shows the same per-Source changes before anything is written.
 * Intended users: Cribl admins, platform owners, consultants.
 * Works with: Cribl Stream on Cribl.Cloud.
 
@@ -70,7 +69,7 @@ Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-co
 
 ### If The App Is Not Yet In The Cribl Marketplace
 1. Open the repository's **Releases** page.
-2. Download `cc-blueprint-1.0.10.tgz` (or the version you want).
+2. Download `cc-blueprint-1.0.11.tgz` (or the version you want).
 3. In Cribl, go to **Apps > Add App > Import from File**.
 4. Upload the `.tgz` file.
 5. Review the app details and complete installation. No other steps are needed.
