@@ -16,6 +16,7 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
     * A Source → Route → Pipeline → Destination diagram that shows QuickConnect paths. Each object is outlined by its worst lint finding.
     * A Source × Route reach matrix read from the Route filters (never executed): which Routes each Source's events can reach, where a Final Route stops them, and which Routes no Source reaches.
     * Live health: each Source and Destination in the diagram shows a green, yellow, or red dot from Cribl's status API, and anything not healthy is listed with its error.
+    * Live events: last-hour event counts on Sources, Routes, and Destinations, and in every reach-matrix cell, so a "?" becomes evidence. Cells where events arrived although the filters say they can't are flagged.
     * A Source → Destination matrix: where each Source's data ends up, following Routes, QuickConnect, the default alias, and Output Router rules.
     * One-click Markdown export: a handoff document with a Mermaid flowchart, every table, and the findings.
   * **Linter.** Thirteen rules with severity, evidence, and a one-line fix. Findings can be suppressed with a reason, and suppressions persist for the whole team. Rules can be turned off or given a different severity per Worker Group.
@@ -130,6 +131,7 @@ Every API call runs as the signed-in user, with that user's own Cribl permission
 | GET | `/api/v1/m/{group}/packs` | Installed packs |
 | GET | `/api/v1/m/{group}/system/status/inputs` | Live health of Sources, shown on the diagram |
 | GET | `/api/v1/m/{group}/system/status/outputs` | Live health of Destinations, shown on the diagram |
+| POST | `/api/v1/system/metrics/query` | Read-only: last-hour event counts per Source, Route, Destination, and Source × Route, filtered to the group |
 | PATCH | `/api/v1/m/{group}/routes/{id}` | L01 fix-it only: write the reordered Routing table after confirmation |
 | GET, PUT, DELETE | `/api/v1/a/cc-blueprint/kvstore/*` | App-scoped KV store for snapshots and suppressions (granted automatically) |
 | POST | `/api/v1/a/cc-blueprint/kvstore/keys` | List snapshot keys by prefix |

@@ -1,6 +1,7 @@
 // Phase 0 discovery tool (dev builds only). Pulls raw config for one Worker Group so it can be
 // sanitized into test fixtures, and probes KV store behavior the docs leave unspecified.
 // Removed before 1.0.0 — see DECISIONS.md.
+import { metricQuery } from '../api/metrics';
 import { useEffect, useState } from 'react';
 import { Button, Text } from '@capra/core';
 
@@ -58,26 +59,21 @@ async function postJson(path: string, body: unknown): Promise<{ status: number; 
 }
 
 /**
- * Metric discovery for throughput: which metrics stores the app can see, and what names they hold.
- * v1/v2 found the status endpoints usable but `/system/metrics` empty even unfiltered, possibly
- * because un-prefixed `/system` calls are scoped to the app itself.
+ * Captures the exact metric queries the throughput feature runs, raw, so the response shape can be
+ * checked. Earlier probes: metrics are leader-level; relative `earliest` strings matched nothing.
  */
 async function probeLive(group: string, log: Log) {
-  const g = `/m/${encodeURIComponent(group)}`;
-  const since = Date.now() - 15 * 60 * 1000;
-  const out: Record<string, unknown> = { group, capturedAt: new Date().toISOString() };
-  const record = (label: string, path: string, r: { status: number; body: unknown }) => {
-    log(`${label}: ${path} -> ${r.status}`);
-    out[`${label}: ${path}`] = r;
-  };
-  for (const path of ['/system/metrics/enum', `${g}/system/metrics/enum`]) {
-    record('enum names', `POST ${path}`, await postJson(path, { earliest: since, maxValues: 20 }));
-  }
-  for (const path of ['/system-insights/metrics?limit=500', `${g}/system-insights/metrics?limit=500`]) {
-    record('system insights names', `GET ${path}`, await getJson(path));
-  }
-  for (const path of ['/system/metrics/telemetry', `${g}/system/metrics/telemetry`]) {
-    record('telemetry', `GET ${path}`, await getJson(path));
+  const now = Date.now();
+  const out: Record<string, unknown> = { group, capturedAt: new Date(now).toISOString() };
+  for (const [metric, splitBys] of [
+    ['total.in_events', ['input']],
+    ['total.out_events', ['output']],
+    ['route.in_events', ['route', 'input']],
+  ] as const) {
+    const body = metricQuery(group, metric, [...splitBys], now - 3600_000, now);
+    const r = await postJson('/system/metrics/query', body);
+    log(`${metric} by ${splitBys.join(', ')} -> ${r.status}`);
+    out[`${metric} by ${splitBys.join(', ')}`] = { request: body, response: r };
   }
   download(`blueprint-live-${group}.json`, out);
   log(`Downloaded blueprint-live-${group}.json`);

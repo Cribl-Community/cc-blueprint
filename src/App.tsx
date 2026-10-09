@@ -13,6 +13,7 @@ import { useRuleSettings } from './ui/useRuleSettings';
 import { useSuppressions } from './ui/useSuppressions';
 import { useHealth } from './ui/useHealth';
 import { useInventory } from './ui/useInventory';
+import { useThroughput } from './ui/useThroughput';
 
 // Dev-only tools (demo seeder, Phase 0 probe); the DEV guard lets Vite drop them from production.
 const DevTools = import.meta.env.DEV ? lazy(() => import('./dev/DevTools')) : null;
@@ -34,6 +35,7 @@ function App() {
   const [showDev, setShowDev] = useState(false);
   const [inv, reloadInventory] = useInventory(groupId);
   const health = useHealth(groupId, inv.state === 'ready' ? inv.loadedAt : null);
+  const throughput = useThroughput(groupId, inv.state === 'ready' ? inv.loadedAt : null);
   const suppressions = useSuppressions(groupId);
   const ruleSettings = useRuleSettings(groupId);
   // Rule settings apply before anything else, so every tab, count, and export follows them.
@@ -132,7 +134,7 @@ function App() {
                   {w}
                 </Alert>
               ))}
-            {inv.state === 'ready' && tab === 'asbuilt' && <AsBuiltTab inventory={inv.inventory} graph={inv.graph} findings={split.active} suppressed={split.suppressed} health={health} />}
+            {inv.state === 'ready' && tab === 'asbuilt' && <AsBuiltTab inventory={inv.inventory} graph={inv.graph} findings={split.active} suppressed={split.suppressed} health={health} throughput={throughput} />}
             {inv.state === 'ready' && tab === 'linter' && (
               <LinterTab
                 inventory={inv.inventory}

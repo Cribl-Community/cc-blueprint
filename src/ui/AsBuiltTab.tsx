@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Alert, Button, Table, Tag, Text, defineColumns } from '@capra/core';
+import { useMemo, useState } from 'react';
+import { Alert, Button, Switch, Table, Tag, Text, defineColumns } from '@capra/core';
 import type { ReferenceGraph } from '../model/graph';
 import type { Finding } from '../lint/types';
 import type { Delivery } from '../model/delivery';
@@ -27,7 +27,10 @@ import { layoutFlow } from '../report/flowLayout';
 import { toMarkdown, type SuppressedFinding } from '../report/markdown';
 import { downloadText } from './download';
 import FlowDiagram from './FlowDiagram';
+import { routeKey, type Throughput } from '../api/metrics';
+import { compact } from './format';
 import type { HealthState } from './useHealth';
+import type { ThroughputState } from './useThroughput';
 
 interface Props {
   inventory: Inventory;
@@ -36,6 +39,7 @@ interface Props {
   findings: Finding[];
   suppressed: SuppressedFinding[];
   health: HealthState;
+  throughput: ThroughputState;
 }
 
 const yesNo = (v: unknown) => (v ? 'Yes' : 'No');
@@ -91,9 +95,10 @@ const REACH_TITLE: Record<string, string> = {
 };
 
 /** Route cells are keyed `r:<route id>` so they can't collide with the Source columns. */
-type ReachItem = { id: string; source: string; [route: `r:${string}`]: ReachCell };
+type LiveCell = ReachCell & { events?: number };
+type ReachItem = { id: string; source: string; [route: `r:${string}`]: LiveCell };
 
-function ReachTable({ matrix }: { matrix: ReachMatrix }) {
+function ReachTable({ matrix, live }: { matrix: ReachMatrix; live?: Throughput }) {
   const columns = useMemo(
     () =>
       defineColumns<ReachItem>([
@@ -101,11 +106,15 @@ function ReachTable({ matrix }: { matrix: ReachMatrix }) {
         ...matrix.routes.map((r) => ({
           id: `r:${r.id}` as const,
           label: r.label,
-          render: (c: ReachCell) => {
+          render: (c: LiveCell) => {
             const kind = c.stops ? 'stops' : c.state;
+            // Events arrived where the filter analysis says none can: the config likely changed this hour.
+            const surprise = c.events !== undefined && c.events > 0 && (c.state === 'no' || c.state === 'unreached');
+            const title = `${REACH_TITLE[kind]}${c.events !== undefined ? ` · ${c.events.toLocaleString()} events in the last hour` : ''}${surprise ? ' — although the filters say none should arrive; the config may have changed in the last hour' : ''}`;
             return (
-              <span className={`reach reach--${kind}`} title={REACH_TITLE[kind]}>
+              <span className={`reach reach--${kind}${surprise ? ' reach--surprise' : ''}`} title={title}>
                 {reachLabel(c)}
+                {c.events !== undefined && <span className="reach-count">{compact(c.events)}</span>}
               </span>
             );
           },
@@ -116,7 +125,12 @@ function ReachTable({ matrix }: { matrix: ReachMatrix }) {
   const items = matrix.rows.map((row) => ({
     id: row.sourceId,
     source: row.sourceId,
-    ...Object.fromEntries(row.cells.map((c, i) => [`r:${matrix.routes[i].id}`, c])),
+    ...Object.fromEntries(
+      row.cells.map((c, i) => [
+        `r:${matrix.routes[i].id}`,
+        { ...c, events: live ? (live.routeBySource.get(routeKey(matrix.routes[i].id, `${row.type}:${row.sourceId}`)) ?? 0) : undefined },
+      ]),
+    ),
   })) as ReachItem[];
   const unreached = unreachedRoutes(matrix);
   return (
@@ -124,6 +138,7 @@ function ReachTable({ matrix }: { matrix: ReachMatrix }) {
       <Text>
         Which Routes each Source&apos;s events can reach, read from the Route filters. Only the input id and literal
         Source fields are known, so filters on event content show as &ldquo;?&rdquo;.
+        {live && ' Each cell also shows the events that actually arrived in the last hour.'}
       </Text>
       <div className="reach-scroll">
         <Table
@@ -240,7 +255,21 @@ function HealthSummary({ health, inventory }: { health: HealthState; inventory: 
   );
 }
 
-export default function AsBuiltTab({ inventory, graph, findings, suppressed, health }: Props) {
+/** Last-hour event counts per diagram node key (Sources, Routes, Destinations). */
+function nodeCounts(inv: Inventory, t: Throughput): Map<string, number> {
+  return new Map([
+    ...inv.sources.map((s) => [`source:${s.id}`, t.sources.get(`${s.type}:${s.id}`) ?? 0] as const),
+    ...inv.routes.map((r) => [`route:${r.id}`, t.routes.get(r.id) ?? 0] as const),
+    ...inv.destinations.map((d) => [`destination:${d.id}`, t.destinations.get(`${d.type}:${d.id}`) ?? 0] as const),
+  ]);
+}
+
+export default function AsBuiltTab({ inventory, graph, findings, suppressed, health, throughput }: Props) {
+  const [showCounts, setShowCounts] = useState(false);
+  const counts = useMemo(
+    () => (throughput.throughput ? nodeCounts(inventory, throughput.throughput) : undefined),
+    [inventory, throughput.throughput],
+  );
   const report = useMemo(() => buildAsBuilt(inventory, graph), [inventory, graph]);
   const layout = useMemo(() => layoutFlow(inventory, graph, findings), [inventory, graph, findings]);
   const reach = useMemo(() => routeReach(inventory), [inventory]);
@@ -279,7 +308,22 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
           definite match, a dashed one depends on event content.
         </Text>
         <HealthSummary health={health} inventory={inventory} />
-        <FlowDiagram layout={layout} graph={graph} reach={reach} health={health.health} />
+        {counts ? (
+          <label className="rule-switch">
+            <Switch aria-label="Show last-hour events" size="sm" checked={showCounts} onChange={(e) => setShowCounts(e.target.checked)} />
+            <span>Show events from the last hour on Sources, Routes, and Destinations</span>
+          </label>
+        ) : (
+          throughput.error && <Text variant="body-sm-normal">{`Event counts unavailable: ${throughput.error}`}</Text>
+        )}
+        <FlowDiagram
+          layout={layout}
+          graph={graph}
+          reach={reach}
+          health={health.health}
+          counts={counts}
+          showCounts={showCounts && !!counts}
+        />
         <div className="flow-legend">
           <span><span className="swatch swatch--error" /> Error</span>
           <span><span className="swatch swatch--warning" /> Warning</span>
@@ -304,7 +348,7 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
       </Section>
       {report.reach.rows.length > 0 && report.reach.routes.length > 0 && (
         <Section title="Source × Route reach" count={report.reach.rows.length}>
-          <ReachTable matrix={report.reach} />
+          <ReachTable matrix={report.reach} live={throughput.throughput} />
         </Section>
       )}
       {report.delivery.rows.length > 0 && (

@@ -720,3 +720,14 @@
 .flow-health--unknown {
   fill: token('color.foreground.subtle');
 }
+
+.reach-count {
+  margin-left: token('spacing.xs');
+  color: token('color.foreground.subtle');
+  font: token('typography.body.xs.normal');
+}
+
+.reach--surprise .reach-count {
+  color: token('color.foreground.warning.default');
+  font-weight: 600;
+}

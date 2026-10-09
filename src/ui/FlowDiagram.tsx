@@ -4,6 +4,7 @@ import type { ReferenceGraph } from '../model/graph';
 import type { RouteReach } from '../model/reach';
 import { busFlow, HEADER_H, NODE_H, NODE_W, PAD, type FlowLayout, type LayoutNode } from '../report/flowLayout';
 import { stronger, traceHover, type Strength } from '../report/trace';
+import { compact } from './format';
 
 interface Props {
   layout: FlowLayout;
@@ -12,6 +13,10 @@ interface Props {
   reach: Map<string, RouteReach[]>;
   /** Live health for Sources and Destinations, when it could be read. */
   health?: HealthMap;
+  /** Last-hour event counts per node key, when metrics could be read. */
+  counts?: Map<string, number>;
+  /** Show counts instead of the type/Final sublabel. */
+  showCounts?: boolean;
 }
 
 const curve = (a: { x: number; y: number }, b: { x: number; y: number }) => {
@@ -27,7 +32,7 @@ const SUB_MAX = 12;
 
 const HEALTH_TEXT = { Green: 'healthy', Yellow: 'degraded', Red: 'critical', Unknown: 'unknown' } as const;
 
-export default function FlowDiagram({ layout, graph, reach, health }: Props) {
+export default function FlowDiagram({ layout, graph, reach, health, counts, showCounts }: Props) {
   const [hovered, setHovered] = useState<LayoutNode | null>(null);
   const trace = useMemo(() => (hovered ? traceHover(hovered, graph, reach) : null), [hovered, graph, reach]);
 
@@ -91,6 +96,8 @@ export default function FlowDiagram({ layout, graph, reach, health }: Props) {
         {layout.nodes.map((n) => {
           // Disabled objects can report stale status, so they get no dot.
           const h = n.disabled ? undefined : health?.get(n.key);
+          const events = counts?.get(n.key);
+          const sublabel = showCounts && events !== undefined ? `${compact(events)} ev/h` : n.sublabel;
           const cls = [
             'flow-node',
             `flow-node--${n.column}`,
@@ -110,16 +117,16 @@ export default function FlowDiagram({ layout, graph, reach, health }: Props) {
               onMouseLeave={() => setHovered(null)}
             >
               <title>
-                {`${n.label}${n.sublabel ? ` — ${n.sublabel}` : ''}${n.disabled ? ' (disabled)' : ''}${n.unreferenced ? ' (not referenced)' : ''}${n.findingCount ? ` · ${n.findingCount} finding${n.findingCount === 1 ? '' : 's'} (see Linter)` : ''}${h ? ` · live: ${HEALTH_TEXT[h.health]}${h.error ? ` (${h.error})` : ''}` : ''}`}
+                {`${n.label}${n.sublabel ? ` — ${n.sublabel}` : ''}${n.disabled ? ' (disabled)' : ''}${n.unreferenced ? ' (not referenced)' : ''}${n.findingCount ? ` · ${n.findingCount} finding${n.findingCount === 1 ? '' : 's'} (see Linter)` : ''}${h ? ` · live: ${HEALTH_TEXT[h.health]}${h.error ? ` (${h.error})` : ''}` : ''}${events !== undefined ? ` · ${events.toLocaleString()} events in the last hour` : ''}`}
               </title>
               <rect width={NODE_W} height={NODE_H} rx={6} />
               {h && <circle className={`flow-health flow-health--${h.health.toLowerCase()}`} cx={NODE_W - 5} cy={5} r={3.5} />}
               <text x={10} y={NODE_H / 2} className="flow-node-label">
-                {truncate(n.label, ROW_CHARS - (n.sublabel ? Math.min(n.sublabel.length, SUB_MAX) + 2 : 0))}
+                {truncate(n.label, ROW_CHARS - (sublabel ? Math.min(sublabel.length, SUB_MAX) + 2 : 0))}
               </text>
-              {n.sublabel && (
+              {sublabel && (
                 <text x={NODE_W - 10} y={NODE_H / 2} className="flow-node-sublabel" textAnchor="end">
-                  {truncate(n.sublabel, SUB_MAX)}
+                  {truncate(sublabel, SUB_MAX)}
                 </text>
               )}
             </g>
