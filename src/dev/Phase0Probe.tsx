@@ -58,36 +58,26 @@ async function postJson(path: string, body: unknown): Promise<{ status: number; 
 }
 
 /**
- * Captures live status and metrics responses so throughput/health can be designed against real data.
- * Metrics are leader-level (`/system/metrics`); the group prefix 404s there.
+ * Metric discovery for throughput: which metrics stores the app can see, and what names they hold.
+ * v1/v2 found the status endpoints usable but `/system/metrics` empty even unfiltered, possibly
+ * because un-prefixed `/system` calls are scoped to the app itself.
  */
 async function probeLive(group: string, log: Log) {
   const g = `/m/${encodeURIComponent(group)}`;
-  const wg = encodeURIComponent(`__worker_group=='${group}'`);
-  const q = (name: string) => `earliest=-15m&numBuckets=1&metricNameFilter=${encodeURIComponent(name)}`;
-  const gets: [string, string][] = [
-    ['inputs status', `${g}/system/status/inputs?metrics=true`],
-    ['outputs status', `${g}/system/status/outputs?metrics=true`],
-    // Which metric names exist at all (no name filter).
-    ['all metric names', '/system/metrics?earliest=-15m&numBuckets=1'],
-    ['exact name', `/system/metrics?${q('total.in_events')}`],
-    ['name list', `/system/metrics?${q(JSON.stringify(['total.in_events', 'total.out_events']))}`],
-    ['regex', `/system/metrics?${q('total\\.(in|out)_events')}`],
-    ['exact name + group filter', `/system/metrics?${q('total.in_events')}&filterExpr=${wg}`],
-  ];
+  const since = Date.now() - 15 * 60 * 1000;
   const out: Record<string, unknown> = { group, capturedAt: new Date().toISOString() };
-  for (const [label, path] of gets) {
-    const r = await getJson(path);
-    log(`${label}: GET ${path} -> ${r.status}`);
-    out[`${label}: GET ${path}`] = r;
+  const record = (label: string, path: string, r: { status: number; body: unknown }) => {
+    log(`${label}: ${path} -> ${r.status}`);
+    out[`${label}: ${path}`] = r;
+  };
+  for (const path of ['/system/metrics/enum', `${g}/system/metrics/enum`]) {
+    record('enum names', `POST ${path}`, await postJson(path, { earliest: since, maxValues: 20 }));
   }
-  for (const [label, body] of [
-    ['query, split by input', { earliest: '-15m', latest: 'now', aggs: { aggregations: ['sum("total.in_events").as("in_events")'], splitBys: ['input'], timeWindowSeconds: 900 } }],
-    ['query, group filter', { earliest: '-15m', latest: 'now', where: `__worker_group=='${group}'`, aggs: { aggregations: ['sum("total.in_events").as("in_events")'], splitBys: ['input'], timeWindowSeconds: 900 } }],
-  ] as const) {
-    const r = await postJson('/system/metrics/query', body);
-    log(`${label}: POST /system/metrics/query -> ${r.status}`);
-    out[`${label}: POST /system/metrics/query`] = r;
+  for (const path of ['/system-insights/metrics?limit=500', `${g}/system-insights/metrics?limit=500`]) {
+    record('system insights names', `GET ${path}`, await getJson(path));
+  }
+  for (const path of ['/system/metrics/telemetry', `${g}/system/metrics/telemetry`]) {
+    record('telemetry', `GET ${path}`, await getJson(path));
   }
   download(`blueprint-live-${group}.json`, out);
   log(`Downloaded blueprint-live-${group}.json`);
