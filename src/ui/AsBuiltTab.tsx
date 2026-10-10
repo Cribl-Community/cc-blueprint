@@ -4,9 +4,11 @@ import type { ReferenceGraph } from '../model/graph';
 import type { Finding } from '../lint/types';
 import type { Delivery } from '../model/delivery';
 import { routeReach } from '../model/reach';
-import type { Inventory } from '../model/types';
+import type { Inventory, Origin } from '../model/types';
 import {
   buildAsBuilt,
+  originLabel,
+  type AsBuilt,
   DELIVERY_LEGEND,
   deliveryLabel,
   destinationHeader,
@@ -47,6 +49,8 @@ interface Props {
   /** Worker or Edge Nodes, labelled for the group's kind. */
   nodes: NodesState & { label: string };
   groupKind: 'stream' | 'fleet';
+  /** For Fleets: the parent it inherits from, and its own subfleets. */
+  family?: { parent?: string; subfleets: string[] };
   /** Edge → Stream links across all groups. */
   lineage: LineageState;
 }
@@ -54,6 +58,9 @@ interface Props {
 const yesNo = (v: unknown) => (v ? 'Yes' : 'No');
 const mono = (v: unknown) => <code className="mono">{String(v)}</code>;
 const enabledTag = (v: unknown) => (v ? <Tag color="success">Enabled</Tag> : <Tag>Disabled</Tag>);
+
+const originTag = (v: unknown) =>
+  !v ? <Tag>local</Tag> : String(v).startsWith('overridden') ? <Tag color="warning">{String(v)}</Tag> : <Tag color="info">{String(v)}</Tag>;
 
 const routeColumns = defineColumns<RouteRow & Record<string, unknown>>([
   { id: 'position', label: '#' },
@@ -63,6 +70,7 @@ const routeColumns = defineColumns<RouteRow & Record<string, unknown>>([
   { id: 'output', label: 'Destination' },
   { id: 'final', label: 'Final', render: yesNo },
   { id: 'enabled', label: 'Status', render: enabledTag },
+  { id: 'origin', label: 'Origin', render: originTag },
 ]);
 
 const sourceColumns = defineColumns<SourceRow & Record<string, unknown>>([
@@ -71,6 +79,7 @@ const sourceColumns = defineColumns<SourceRow & Record<string, unknown>>([
   { id: 'mode', label: 'Mode', render: (v) => (v === 'QuickConnect' ? <Tag color="info">QuickConnect</Tag> : String(v)) },
   { id: 'preProcessing', label: 'Pre-processing' },
   { id: 'enabled', label: 'Status', render: enabledTag },
+  { id: 'origin', label: 'Origin', render: originTag },
 ]);
 
 const pipelineColumns = defineColumns<PipelineRow & Record<string, unknown>>([
@@ -78,6 +87,7 @@ const pipelineColumns = defineColumns<PipelineRow & Record<string, unknown>>([
   { id: 'functions', label: 'Functions' },
   { id: 'disabledFunctions', label: 'Disabled functions' },
   { id: 'usedBy', label: 'Used by' },
+  { id: 'origin', label: 'Origin', render: originTag },
 ]);
 
 const destinationColumns = defineColumns<DestinationRow & Record<string, unknown>>([
@@ -86,6 +96,7 @@ const destinationColumns = defineColumns<DestinationRow & Record<string, unknown
   { id: 'backpressure', label: 'Backpressure' },
   { id: 'postProcessing', label: 'Post-processing' },
   { id: 'usedBy', label: 'Used by' },
+  { id: 'origin', label: 'Origin', render: originTag },
 ]);
 
 const packColumns = defineColumns<PackRow & Record<string, unknown>>([
@@ -415,7 +426,21 @@ function nodeCounts(inv: Inventory, t: Throughput): Map<string, number> {
   ]);
 }
 
-export default function AsBuiltTab({ inventory, graph, findings, suppressed, health, throughput, nodes, groupKind, lineage }: Props) {
+function FamilyLine({ family, origin }: { family?: Props['family']; origin?: AsBuilt['summary']['origin'] }) {
+  if (!family?.parent && !family?.subfleets.length) return null;
+  const parts = [];
+  if (family.parent) {
+    parts.push(
+      origin
+        ? `Subfleet of ${family.parent}: ${origin.inherited} object${origin.inherited === 1 ? '' : 's'} inherited, ${origin.overridden} overridden locally, ${origin.local} local.`
+        : `Subfleet of ${family.parent}. The API didn't mark any object as inherited.`,
+    );
+  }
+  if (family.subfleets.length) parts.push(`Subfleets: ${family.subfleets.join(', ')}.`);
+  return <Text>{parts.join(' ')}</Text>;
+}
+
+export default function AsBuiltTab({ inventory, graph, findings, suppressed, health, throughput, nodes, groupKind, lineage, family }: Props) {
   // Diagram tooltips for the ends of Edge → Stream links in this group.
   const linkNotes = useMemo(() => {
     const notes = new Map<string, string[]>();
@@ -426,8 +451,21 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
           : [`source:${l.input}`, `receives from Fleet ${l.fleet} / ${l.output}${l.confidence === 'possible' ? ' (possible)' : ''}`];
       notes.set(key, [...(notes.get(key) ?? []), note]);
     }
+    // Subfleet provenance, so inherited and overridden objects say so on hover.
+    const origins: [string, { origin?: Origin }[]][] = [
+      ['source', inventory.sources],
+      ['route', inventory.routes],
+      ['pipeline', inventory.pipelines],
+      ['destination', inventory.destinations],
+    ];
+    for (const [kind, objects] of origins) {
+      for (const o of objects as ({ id: string; origin?: Origin })[]) {
+        const label = originLabel(o.origin);
+        if (label) notes.set(`${kind}:${o.id}`, [...(notes.get(`${kind}:${o.id}`) ?? []), label]);
+      }
+    }
     return new Map([...notes].map(([k, v]) => [k, v.join('; ')]));
-  }, [lineage.links, inventory.group, groupKind]);
+  }, [lineage.links, inventory, groupKind]);
   const [showCounts, setShowCounts] = useState(false);
   const counts = useMemo(
     () => (throughput.throughput ? nodeCounts(inventory, throughput.throughput) : undefined),
@@ -437,6 +475,8 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
   const layout = useMemo(() => layoutFlow(inventory, graph, findings), [inventory, graph, findings]);
   const reach = useMemo(() => routeReach(inventory), [inventory]);
   const s = report.summary;
+  // The Origin column only appears when this group inherits config from a parent Fleet.
+  const withOrigin = <T extends string>(cols: T[]): (T | 'origin')[] => (s.origin ? [...cols, 'origin'] : cols);
 
   const exportMarkdown = () => {
     const now = new Date();
@@ -464,6 +504,8 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
           Export Markdown
         </Button>
       </div>
+
+      <FamilyLine family={family} origin={s.origin} />
 
       <section className="section">
         <Text as="h2" variant="heading">Data flow</Text>
@@ -511,7 +553,7 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
         <Table
           items={report.routes as Rows<RouteRow>}
           columns={routeColumns}
-          visibleColumns={['position', 'name', 'filter', 'pipeline', 'output', 'final', 'enabled']}
+          visibleColumns={withOrigin(['position', 'name', 'filter', 'pipeline', 'output', 'final', 'enabled'])}
           density="compact"
         />
       </Section>
@@ -529,7 +571,7 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
         <Table
           items={report.sources as Rows<SourceRow>}
           columns={sourceColumns}
-          visibleColumns={['id', 'type', 'mode', 'preProcessing', 'enabled']}
+          visibleColumns={withOrigin(['id', 'type', 'mode', 'preProcessing', 'enabled'])}
           density="compact"
         />
       </Section>
@@ -537,7 +579,7 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
         <Table
           items={report.pipelines as Rows<PipelineRow>}
           columns={pipelineColumns}
-          visibleColumns={['id', 'functions', 'disabledFunctions', 'usedBy']}
+          visibleColumns={withOrigin(['id', 'functions', 'disabledFunctions', 'usedBy'])}
           density="compact"
         />
       </Section>
@@ -545,7 +587,7 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
         <Table
           items={report.destinations as Rows<DestinationRow>}
           columns={destinationColumns}
-          visibleColumns={['id', 'type', 'backpressure', 'postProcessing', 'usedBy']}
+          visibleColumns={withOrigin(['id', 'type', 'backpressure', 'postProcessing', 'usedBy'])}
           density="compact"
         />
       </Section>

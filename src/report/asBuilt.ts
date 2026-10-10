@@ -2,7 +2,15 @@
 import type { ReferenceGraph, Ref } from '../model/graph';
 import { deliveries, EXPRESSION_OUTPUT, type Delivery } from '../model/delivery';
 import { routeReach, type ReachState } from '../model/reach';
-import type { Inventory } from '../model/types';
+import type { Inventory, Origin } from '../model/types';
+
+export interface OriginSummary {
+  /** Parent Fleets objects were inherited from. */
+  parents: string[];
+  inherited: number;
+  overridden: number;
+  local: number;
+}
 
 export interface AsBuiltSummary {
   sources: { total: number; enabled: number; quickConnect: number };
@@ -10,10 +18,14 @@ export interface AsBuiltSummary {
   pipelines: number;
   destinations: number;
   packs: number;
+  /** Present only when some object was inherited from a parent Fleet. */
+  origin?: OriginSummary;
 }
 
 export interface RouteRow {
   id: string;
+  /** Subfleet provenance: `inherited from <fleet>`, `overridden (from <fleet>)`, or undefined for local objects. */
+  origin?: string;
   position: number;
   name: string;
   filter: string;
@@ -25,6 +37,8 @@ export interface RouteRow {
 
 export interface SourceRow {
   id: string;
+  /** Subfleet provenance: `inherited from <fleet>`, `overridden (from <fleet>)`, or undefined for local objects. */
+  origin?: string;
   type: string;
   mode: 'Routes' | 'QuickConnect';
   preProcessing: string;
@@ -33,6 +47,8 @@ export interface SourceRow {
 
 export interface PipelineRow {
   id: string;
+  /** Subfleet provenance: `inherited from <fleet>`, `overridden (from <fleet>)`, or undefined for local objects. */
+  origin?: string;
   functions: number;
   disabledFunctions: number;
   usedBy: string;
@@ -40,6 +56,8 @@ export interface PipelineRow {
 
 export interface DestinationRow {
   id: string;
+  /** Subfleet provenance: `inherited from <fleet>`, `overridden (from <fleet>)`, or undefined for local objects. */
+  origin?: string;
   type: string;
   backpressure: string;
   postProcessing: string;
@@ -175,6 +193,20 @@ export function buildDeliveryMatrix(inv: Inventory): DeliveryMatrix {
   };
 }
 
+export const originLabel = (o: Origin | undefined) =>
+  !o ? undefined : o.overridden ? `overridden (from ${o.from})` : `inherited from ${o.from}`;
+
+function summarizeOrigins(objects: { origin?: Origin }[]): OriginSummary | undefined {
+  const inherited = objects.filter((o) => o.origin);
+  if (!inherited.length) return undefined;
+  return {
+    parents: [...new Set(inherited.map((o) => o.origin!.from))].sort(),
+    inherited: inherited.filter((o) => !o.origin!.overridden).length,
+    overridden: inherited.filter((o) => o.origin!.overridden).length,
+    local: objects.length - inherited.length,
+  };
+}
+
 export function buildAsBuilt(inv: Inventory, graph: ReferenceGraph): AsBuilt {
   const pipelines = inv.pipelines.filter((p) => !p.packId);
   return {
@@ -190,6 +222,7 @@ export function buildAsBuilt(inv: Inventory, graph: ReferenceGraph): AsBuilt {
       pipelines: pipelines.length,
       destinations: inv.destinations.length,
       packs: inv.packs.length,
+      origin: summarizeOrigins([...inv.sources, ...inv.routes, ...pipelines, ...inv.destinations]),
     },
     routes: inv.routes.map((r) => {
       const resolved = r.output ? graph.resolveDestination(r.output) : undefined;
@@ -206,6 +239,7 @@ export function buildAsBuilt(inv: Inventory, graph: ReferenceGraph): AsBuilt {
           : `expression: ${r.outputExpression ?? ''}`,
         final: r.final,
         enabled: !r.disabled,
+        origin: originLabel(r.origin),
       };
     }),
     reach: buildReachMatrix(inv),
@@ -216,12 +250,14 @@ export function buildAsBuilt(inv: Inventory, graph: ReferenceGraph): AsBuilt {
       mode: s.sendToRoutes ? 'Routes' : 'QuickConnect',
       preProcessing: s.pipeline ?? '—',
       enabled: !s.disabled,
+      origin: originLabel(s.origin),
     })),
     pipelines: pipelines.map((p) => ({
       id: p.id,
       functions: p.functions.length,
       disabledFunctions: p.functions.filter((f) => f.disabled).length,
       usedBy: describeRefs(graph.pipelineRefs.get(p.id), inv),
+      origin: originLabel(p.origin),
     })),
     destinations: inv.destinations.map((d) => ({
       id: d.id,
@@ -229,6 +265,7 @@ export function buildAsBuilt(inv: Inventory, graph: ReferenceGraph): AsBuilt {
       backpressure: d.onBackpressure ?? '—',
       postProcessing: d.pipeline ?? '—',
       usedBy: describeRefs(graph.destinationRefs.get(d.id), inv),
+      origin: originLabel(d.origin),
     })),
     packs: inv.packs.map((p) => ({ id: p.id, name: p.displayName, version: p.version ?? '—' })),
   };

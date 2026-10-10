@@ -74,6 +74,10 @@ function App() {
   }, [attempt]);
 
   const group = load.state === 'ready' ? load.groups.find((g) => g.id === groupId) : undefined;
+  const family =
+    group?.kind === 'fleet' && load.state === 'ready'
+      ? { parent: group.parent, subfleets: load.groups.filter((g) => g.parent === group.id).map((g) => g.id) }
+      : undefined;
 
   return (
     <div className="app">
@@ -142,7 +146,7 @@ function App() {
                   {w}
                 </Alert>
               ))}
-            {inv.state === 'ready' && tab === 'asbuilt' && <AsBuiltTab inventory={inv.inventory} graph={inv.graph} findings={split.active} suppressed={split.suppressed} health={health} throughput={throughput} nodes={{ ...nodes, label: group.kind === 'fleet' ? 'Edge Nodes' : 'Worker Nodes' }} groupKind={group.kind} lineage={lineage} />}
+            {inv.state === 'ready' && tab === 'asbuilt' && <AsBuiltTab inventory={inv.inventory} graph={inv.graph} findings={split.active} suppressed={split.suppressed} health={health} throughput={throughput} nodes={{ ...nodes, label: group.kind === 'fleet' ? 'Edge Nodes' : 'Worker Nodes' }} groupKind={group.kind} lineage={lineage} family={family} />}
             {inv.state === 'ready' && tab === 'linter' && (
               <LinterTab
                 inventory={inv.inventory}

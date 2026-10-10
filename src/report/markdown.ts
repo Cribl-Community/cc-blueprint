@@ -41,6 +41,12 @@ function table(headers: string[], rows: string[][]): string {
   ].join('\n') + '\n';
 }
 
+/** A table with an Origin column appended when the group inherits config from a parent Fleet. */
+function objectTable<T extends { origin?: string }>(report: AsBuilt, headers: string[], items: T[], row: (x: T) => string[]): string {
+  if (!report.summary.origin) return table(headers, items.map(row));
+  return table([...headers, 'Origin'], items.map((x) => [...row(x), cell(x.origin ?? 'local')]));
+}
+
 const mermaidLabel = (s: string) => `"${s.replace(/"/g, '#quot;')}"`;
 
 export function mermaid(report: AsBuilt, flows: Flow[]): string {
@@ -207,6 +213,12 @@ export function toMarkdown(
         ['Pipelines', String(s.pipelines)],
         ['Destinations', String(s.destinations)],
         ['Packs', String(s.packs)],
+        ...(s.origin
+          ? [[
+              'Inherited config',
+              `${s.origin.inherited} inherited and ${s.origin.overridden} overridden from ${s.origin.parents.join(', ')}; ${s.origin.local} local`,
+            ]]
+          : []),
       ],
     ),
   );
@@ -224,9 +236,11 @@ export function toMarkdown(
   out.push('Evaluated top to bottom. A Final route stops evaluation for the events it matches.');
   out.push('');
   out.push(
-    table(
+    objectTable(
+      report,
       ['#', 'Name', 'Filter', 'Pipeline', 'Destination', 'Final', 'Enabled'],
-      report.routes.map((r) => [
+      report.routes,
+      (r) => [
         String(r.position),
         cell(r.name),
         cell(code(r.filter)),
@@ -234,7 +248,7 @@ export function toMarkdown(
         cell(r.output),
         cell(r.final),
         cell(r.enabled),
-      ]),
+      ],
     ),
   );
   out.push(...reachSection(report));
@@ -242,25 +256,31 @@ export function toMarkdown(
   out.push('## Sources');
   out.push('');
   out.push(
-    table(
+    objectTable(
+      report,
       ['ID', 'Type', 'Mode', 'Pre-processing', 'Enabled'],
-      report.sources.map((r) => [cell(r.id), cell(r.type), r.mode, cell(r.preProcessing), cell(r.enabled)]),
+      report.sources,
+      (r) => [cell(r.id), cell(r.type), r.mode, cell(r.preProcessing), cell(r.enabled)],
     ),
   );
   out.push('## Pipelines');
   out.push('');
   out.push(
-    table(
+    objectTable(
+      report,
       ['ID', 'Functions', 'Disabled functions', 'Used by'],
-      report.pipelines.map((r) => [cell(r.id), String(r.functions), String(r.disabledFunctions), cell(r.usedBy)]),
+      report.pipelines,
+      (r) => [cell(r.id), String(r.functions), String(r.disabledFunctions), cell(r.usedBy)],
     ),
   );
   out.push('## Destinations');
   out.push('');
   out.push(
-    table(
+    objectTable(
+      report,
       ['ID', 'Type', 'Backpressure', 'Post-processing', 'Used by'],
-      report.destinations.map((r) => [cell(r.id), cell(r.type), cell(r.backpressure), cell(r.postProcessing), cell(r.usedBy)]),
+      report.destinations,
+      (r) => [cell(r.id), cell(r.type), cell(r.backpressure), cell(r.postProcessing), cell(r.usedBy)],
     ),
   );
   out.push('## Packs');

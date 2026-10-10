@@ -14,12 +14,20 @@ export interface RawConfig {
   packs: unknown[];
 }
 
+/** For a subfleet's config: the parent Fleet an object came from, and whether it's overridden locally. */
+export interface Origin {
+  from: string;
+  overridden: boolean;
+}
+
 export interface Connection {
   pipeline?: string;
   output: string;
 }
 
 export interface Source {
+  /** Set when a subfleet inherits this object from a parent Fleet. */
+  origin?: Origin;
   id: string;
   type: string;
   disabled: boolean;
@@ -35,6 +43,8 @@ export interface Source {
 }
 
 export interface Route {
+  /** Set when a subfleet inherits this object from a parent Fleet. */
+  origin?: Origin;
   id: string;
   name: string;
   /** 0-based position in the Routing table; evaluation order. */
@@ -62,6 +72,8 @@ export interface PipelineFunction {
 }
 
 export interface Pipeline {
+  /** Set when a subfleet inherits this object from a parent Fleet. */
+  origin?: Origin;
   id: string;
   description?: string;
   functions: PipelineFunction[];
@@ -76,6 +88,8 @@ export interface OutputRouterRule {
 }
 
 export interface Destination {
+  /** Set when a subfleet inherits this object from a parent Fleet. */
+  origin?: Origin;
   id: string;
   type: string;
   disabled: boolean;

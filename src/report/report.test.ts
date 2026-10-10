@@ -212,3 +212,33 @@ describe('Edge Fleet', () => {
     expect(report.delivery.destinations.map((d) => d.id)).toEqual(['devnull']);
   });
 });
+
+describe('subfleet provenance', () => {
+  // A subfleet's config is served with __srcGroup/__srcOverridden on inherited objects.
+  const raw = {
+    ...fleetDefaultRaw,
+    group: 'linux',
+    inputs: (fleetDefaultRaw.inputs as Record<string, unknown>[]).map((i, n) =>
+      n === 0 ? { ...i, __srcGroup: 'default_fleet', __srcOverridden: true } : n < 3 ? { ...i, __srcGroup: 'default_fleet' } : i,
+    ),
+  };
+
+  it('records where each object came from and summarizes it', () => {
+    const inv = normalize(raw);
+    expect(inv.sources.find((s) => s.id === 'in_system_metrics')?.origin).toEqual({ from: 'default_fleet', overridden: true });
+    expect(inv.sources.filter((s) => s.origin)).toHaveLength(3);
+    const report = buildAsBuilt(inv, buildGraph(inv));
+    expect(report.summary.origin).toMatchObject({ parents: ['default_fleet'], inherited: 2, overridden: 1 });
+    expect(report.sources.find((s) => s.id === 'in_system_metrics')?.origin).toBe('overridden (from default_fleet)');
+  });
+
+  it('adds an Origin column and a summary row to the export only when something is inherited', () => {
+    const inv = normalize(raw);
+    const md = toMarkdown(buildAsBuilt(inv, buildGraph(inv)), [], new Date(0));
+    expect(md).toContain('| Inherited config | 2 inherited and 1 overridden from default_fleet;');
+    expect(md).toContain('| ID | Type | Mode | Pre-processing | Enabled | Origin |');
+    expect(md).toContain('| in_system_metrics | system_metrics | QuickConnect | — | Yes | overridden (from default_fleet) |');
+    const plain = normalize(fleetDefaultRaw);
+    expect(toMarkdown(buildAsBuilt(plain, buildGraph(plain)), [], new Date(0))).not.toContain('Origin');
+  });
+});

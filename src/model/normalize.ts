@@ -2,6 +2,7 @@ import type {
   Connection,
   Destination,
   Inventory,
+  Origin,
   OutputRouterRule,
   Pack,
   Pipeline,
@@ -22,6 +23,13 @@ const byId = <T extends { id: string }>(a: T, b: T) => a.id.localeCompare(b.id);
 
 export const PACK_PIPELINE_PREFIX = 'pack:';
 
+/**
+ * A subfleet's config is served with `__srcGroup` (the parent Fleet an object came from) and
+ * `__srcOverridden` (the subfleet changed it locally) on inherited objects; local objects have neither.
+ */
+const originOf = (r: Obj): Origin | undefined =>
+  str(r.__srcGroup) ? { from: str(r.__srcGroup)!, overridden: r.__srcOverridden === true } : undefined;
+
 function normalizeSource(raw: unknown): Source {
   const r = obj(raw);
   const connections: Connection[] = arr(r.connections)
@@ -41,6 +49,7 @@ function normalizeSource(raw: unknown): Source {
       .filter((m) => str(m.name) && m.value !== undefined)
       .map((m) => ({ name: str(m.name)!, value: String(m.value) })),
     description: str(r.description),
+    origin: originOf(r),
   };
 }
 
@@ -61,6 +70,7 @@ function normalizeRoutes(tables: unknown[]): Route[] {
       output: usesExpression ? undefined : (str(r.output) ?? 'default'),
       outputExpression: usesExpression ? str(r.outputExpression) : undefined,
       description: str(r.description),
+      origin: originOf(r),
       groupId: str(r.groupId),
     };
   });
@@ -87,6 +97,7 @@ function normalizePipeline(raw: unknown): Pipeline {
   return {
     id,
     description: str(conf.description),
+    origin: originOf(p),
     functions: arr(conf.functions).map(normalizeFunction),
     packId: isPack ? id.slice(id.startsWith(PACK_PIPELINE_PREFIX) ? PACK_PIPELINE_PREFIX.length : 0) : undefined,
   };
@@ -107,6 +118,7 @@ function normalizeDestination(raw: unknown): Destination {
     defaultId: str(d.defaultId),
     rules,
     description: str(d.description),
+    origin: originOf(d),
   };
 }
 
