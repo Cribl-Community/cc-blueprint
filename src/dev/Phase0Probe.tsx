@@ -112,6 +112,36 @@ async function probeFleets(log: Log) {
   log(`Downloaded blueprint-fleets.json (${items.length} fleet${items.length === 1 ? '' : 's'})`);
 }
 
+/**
+ * Why a Source can be Red in Cribl's per-host Status tab but Green in the group-level status list:
+ * captures the group list, each Source's single-item status, and each node's own status via the
+ * `/w/<node id>/` prefix, all with metrics, for comparison.
+ */
+async function probeHealthDetail(group: string, log: Log) {
+  const g = `/m/${encodeURIComponent(group)}`;
+  const out: Record<string, unknown> = { group, capturedAt: new Date().toISOString() };
+  const record = async (label: string, path: string) => {
+    const r = await getJson(path);
+    out[`${label}: GET ${path}`] = r;
+    log(`${label}: ${path} -> ${r.status}`);
+    return r;
+  };
+  const list = await record('group list', `${g}/system/status/inputs?metrics=true`);
+  await record('group list, outputs', `${g}/system/status/outputs?metrics=true`);
+  for (const { id } of ((list.body as { items?: { id: string }[] })?.items ?? []).slice(0, 30)) {
+    await record('group item', `${g}/system/status/inputs/${encodeURIComponent(id)}?metrics=true`);
+  }
+  const filterExp = encodeURIComponent(`group==${JSON.stringify(group)}`);
+  const workers = await record('nodes', `/master/workers?filterExp=${filterExp}&limit=3`);
+  for (const { id } of ((workers.body as { items?: { id: string }[] })?.items ?? []).slice(0, 3)) {
+    const w = `/w/${encodeURIComponent(id)}`;
+    await record('node list', `${w}/system/status/inputs?metrics=true`);
+    await record('node list, outputs', `${w}/system/status/outputs?metrics=true`);
+  }
+  download(`blueprint-health-${group}.json`, out);
+  log(`Downloaded blueprint-health-${group}.json`);
+}
+
 async function kvStatus(method: string, key: string, body?: string, contentType = 'text/plain') {
   const res = await fetch(`${window.CRIBL_API_URL}/kvstore/${key}`, {
     method,
@@ -236,6 +266,9 @@ export default function Phase0Probe() {
       <div style={{ display: 'flex', gap: 8 }}>
         <Button variant="primary" disabled={!group || busy} onClick={run(() => dumpGroup(group, log))}>
           Download raw config
+        </Button>
+        <Button disabled={!group || busy} onClick={run(() => probeHealthDetail(group, log))}>
+          Probe health detail
         </Button>
         <Button disabled={busy} onClick={run(() => probeFleets(log))}>
           Probe Edge Fleets
