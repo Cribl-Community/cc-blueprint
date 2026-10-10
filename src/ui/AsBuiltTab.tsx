@@ -309,12 +309,21 @@ function HealthSummary({ health, inventory }: { health: HealthState; inventory: 
   ]);
   const bad = [...health.health].filter(([key, h]) => enabled.has(key) && (h.health === 'Red' || h.health === 'Yellow'));
   const at = health.at?.toLocaleTimeString();
-  if (!bad.length) return <Text variant="body-sm-normal">{`Live health: every Source and Destination is Green (checked ${at}).`}</Text>;
+  const r = health.report;
+  const scope = !r
+    ? ''
+    : r.groupLevel
+      ? ', from the group summary because no node could be read; it can miss node errors'
+      : `, on ${r.checkedNodes}${r.totalNodes && r.totalNodes > r.checkedNodes ? ` of ${r.totalNodes}` : ''} node${r.checkedNodes === 1 ? '' : 's'}`;
+  if (!bad.length) return <Text variant="body-sm-normal">{`Live health: every Source and Destination is Green (checked ${at}${scope}).`}</Text>;
   const red = bad.some(([, h]) => h.health === 'Red');
   return (
-    <Alert appearance={red ? 'danger' : 'warning'} title={`${bad.length} not healthy (checked ${at})`}>
+    <Alert appearance={red ? 'danger' : 'warning'} title={`${bad.length} not healthy (checked ${at}${scope})`}>
       {bad
-        .map(([key, h]) => `${key.replace(':', ' ')}: ${h.health === 'Red' ? 'critical' : 'degraded'}${h.error ? ` (${h.error})` : ''}`)
+        .map(
+          ([key, h]) =>
+            `${key.replace(':', ' ')}: ${h.health === 'Red' ? 'critical' : 'degraded'}${h.error ? ` (${h.error})` : ''}${h.nodes?.length ? ` on ${h.nodes.join(', ')}` : ''}`,
+        )
         .join('; ')}
     </Alert>
   );

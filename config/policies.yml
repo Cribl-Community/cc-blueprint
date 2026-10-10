@@ -18,10 +18,15 @@ policies:
     actions: ['GET']
   - object: '/m/:gid/packs'
     actions: ['GET']
-  # Live health on the As-Built tab (read-only).
+  # Live health on the As-Built tab (read-only). Read per node; the group-level paths are the
+  # fallback, and Worker API paths must be declared alongside their group equivalents anyway.
   - object: '/m/:gid/system/status/inputs'
     actions: ['GET']
   - object: '/m/:gid/system/status/outputs'
+    actions: ['GET']
+  - object: '/w/:wid/system/status/inputs'
+    actions: ['GET']
+  - object: '/w/:wid/system/status/outputs'
     actions: ['GET']
   # Last-hour event counts (read-only query; POST only carries the query). Leader-level, so no group prefix.
   - object: '/system/metrics/query'

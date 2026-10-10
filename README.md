@@ -75,7 +75,7 @@ Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-co
 
 ### If The App Is Not Yet In The Cribl Marketplace
 1. Open the repository's **Releases** page.
-2. Download `cc-blueprint-1.0.15.tgz` (or the version you want).
+2. Download `cc-blueprint-1.0.16.tgz` (or the version you want).
 3. In Cribl, go to **Apps > Add App > Import from File**.
 4. Upload the `.tgz` file.
 5. Review the app details and complete installation. No other steps are needed.
@@ -132,8 +132,9 @@ Every API call runs as the signed-in user, with that user's own Cribl permission
 | GET | `/api/v1/m/{group}/packs` | Installed packs |
 | GET | `/api/v1/master/summary/workers` | Count of connected Worker or Edge Nodes in the selected group |
 | GET | `/api/v1/master/workers` | Up to 100 Worker or Edge Nodes in the selected group: hostname, status, OS, Cribl and config version, resources. Network addresses and environment variables are not shown |
-| GET | `/api/v1/m/{group}/system/status/inputs` | Live health of Sources, shown on the diagram |
-| GET | `/api/v1/m/{group}/system/status/outputs` | Live health of Destinations, shown on the diagram |
+| GET | `/api/v1/w/{node}/system/status/inputs` | Live health of Sources on each node (up to 10 per refresh), shown on the diagram |
+| GET | `/api/v1/w/{node}/system/status/outputs` | Live health of Destinations on each node |
+| GET | `/api/v1/m/{group}/system/status/inputs` and `/outputs` | Fallback when no node can be read |
 | POST | `/api/v1/system/metrics/query` | Read-only: last-hour event counts per Source, Route, Destination, and Source × Route, filtered to the group |
 | PATCH | `/api/v1/m/{group}/routes/{id}` | L01 fix-it only: write the reordered Routing table after confirmation |
 | GET, PUT, DELETE | `/api/v1/a/cc-blueprint/kvstore/*` | App-scoped KV store for snapshots and suppressions (granted automatically) |
@@ -176,6 +177,7 @@ This app is built by Steve Hunger (Presidio) for the CriblCon 2026 App Hackathon
 
 * Stream Worker Groups and Edge Fleets. Search and Outpost groups are out of scope.
 * Subfleets are listed like any Fleet, but inherited config isn't shown separately yet: Blueprint documents what the API returns for each Fleet.
+* Live health checks up to 10 connected nodes per refresh and says how many it checked. The group-level status summary is used only when no node can be read, and the app says so, because it can report Green while a node reports errors.
 * Up to 100 nodes are listed per group; the count covers all of them. Config-version drift is detected between nodes, not against the group's deployed version, which Fleets don't report.
 * Collector jobs are not read, so a pipeline used only by a Collector is reported as an orphan (L03). The fix text says so.
 * For the same reason, a Route fed only by a Collector is reported as reached by no Source (L09) and shows no reach in the matrix. Suppress the finding with that reason.

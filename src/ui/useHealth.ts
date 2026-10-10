@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { fetchHealth, type HealthMap } from '../api/health';
+import { fetchHealth, type HealthMap, type HealthReport } from '../api/health';
 
 export interface HealthState {
   health?: HealthMap;
+  report?: Omit<HealthReport, 'health'>;
   /** Why live health isn't shown (no permission, request failed). */
   error?: string;
   at?: Date;
@@ -15,7 +16,7 @@ export function useHealth(group: string | null, loadedAt: Date | null): HealthSt
     if (!group || !loadedAt) return;
     const ctrl = new AbortController();
     fetchHealth(group, ctrl.signal)
-      .then((health) => setState({ group, health, at: new Date() }))
+      .then(({ health, ...report }) => setState({ group, health, report, at: new Date() }))
       .catch((e: unknown) => {
         if (!ctrl.signal.aborted) setState({ group, error: e instanceof Error ? e.message : String(e) });
       });

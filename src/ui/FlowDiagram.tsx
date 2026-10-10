@@ -117,7 +117,7 @@ export default function FlowDiagram({ layout, graph, reach, health, counts, show
               onMouseLeave={() => setHovered(null)}
             >
               <title>
-                {`${n.label}${n.sublabel ? ` — ${n.sublabel}` : ''}${n.disabled ? ' (disabled)' : ''}${n.unreferenced ? ' (not referenced)' : ''}${n.findingCount ? ` · ${n.findingCount} finding${n.findingCount === 1 ? '' : 's'} (see Linter)` : ''}${h ? ` · live: ${HEALTH_TEXT[h.health]}${h.error ? ` (${h.error})` : ''}` : ''}${events !== undefined ? ` · ${events.toLocaleString()} events in the last hour` : ''}`}
+                {`${n.label}${n.sublabel ? ` — ${n.sublabel}` : ''}${n.disabled ? ' (disabled)' : ''}${n.unreferenced ? ' (not referenced)' : ''}${n.findingCount ? ` · ${n.findingCount} finding${n.findingCount === 1 ? '' : 's'} (see Linter)` : ''}${h ? ` · live: ${HEALTH_TEXT[h.health]}${h.error ? ` (${h.error})` : ''}${h.nodes?.length ? ` on ${h.nodes.join(', ')}` : ''}` : ''}${events !== undefined ? ` · ${events.toLocaleString()} events in the last hour` : ''}`}
               </title>
               <rect width={NODE_W} height={NODE_H} rx={6} />
               {h && <circle className={`flow-health flow-health--${h.health.toLowerCase()}`} cx={NODE_W - 5} cy={5} r={3.5} />}

@@ -28,3 +28,22 @@ describe('parseHealth', () => {
     expect(map.size).toBe(1);
   });
 });
+
+describe('per-node health', () => {
+  // Captured shapes: the group summary said Green; the node said Red with an error.
+  const node = (health: string, error?: string) => ({
+    items: [{ id: 'in_cribl_tcp', type: 'cribl_tcp', status: { health, healthCounts: { [health]: 2 }, ...(error ? { error: { message: error } } : {}) } }],
+  });
+
+  it('keeps the worst health across nodes, the error, and which nodes reported it', () => {
+    const map = parseHealth('source', node('Green'), undefined, 'node-a');
+    parseHealth('source', node('Red', 'failed to parse json (this error is sampled)'), map, 'node-b');
+    parseHealth('source', node('Yellow', 'slow'), map, 'node-c');
+    expect(map.get('source:in_cribl_tcp')).toEqual({
+      health: 'Red',
+      counts: { Green: 2, Red: 2, Yellow: 2 },
+      error: 'failed to parse json (this error is sampled)',
+      nodes: ['node-b', 'node-c'],
+    });
+  });
+});
