@@ -17,6 +17,8 @@ interface Props {
   counts?: Map<string, number>;
   /** Show counts instead of the type/Final sublabel. */
   showCounts?: boolean;
+  /** Extra tooltip text per node key, e.g. Edge → Stream links. */
+  notes?: Map<string, string>;
 }
 
 const curve = (a: { x: number; y: number }, b: { x: number; y: number }) => {
@@ -32,7 +34,7 @@ const SUB_MAX = 12;
 
 const HEALTH_TEXT = { Green: 'healthy', Yellow: 'degraded', Red: 'critical', Unknown: 'unknown' } as const;
 
-export default function FlowDiagram({ layout, graph, reach, health, counts, showCounts }: Props) {
+export default function FlowDiagram({ layout, graph, reach, health, counts, showCounts, notes }: Props) {
   const [hovered, setHovered] = useState<LayoutNode | null>(null);
   const trace = useMemo(() => (hovered ? traceHover(hovered, graph, reach) : null), [hovered, graph, reach]);
 
@@ -117,7 +119,7 @@ export default function FlowDiagram({ layout, graph, reach, health, counts, show
               onMouseLeave={() => setHovered(null)}
             >
               <title>
-                {`${n.label}${n.sublabel ? ` — ${n.sublabel}` : ''}${n.disabled ? ' (disabled)' : ''}${n.unreferenced ? ' (not referenced)' : ''}${n.findingCount ? ` · ${n.findingCount} finding${n.findingCount === 1 ? '' : 's'} (see Linter)` : ''}${h ? ` · live: ${HEALTH_TEXT[h.health]}${h.error ? ` (${h.error})` : ''}${h.nodes?.length ? ` on ${h.nodes.join(', ')}` : ''}` : ''}${events !== undefined ? ` · ${events.toLocaleString()} events in the last hour` : ''}`}
+                {`${n.label}${n.sublabel ? ` — ${n.sublabel}` : ''}${n.disabled ? ' (disabled)' : ''}${n.unreferenced ? ' (not referenced)' : ''}${n.findingCount ? ` · ${n.findingCount} finding${n.findingCount === 1 ? '' : 's'} (see Linter)` : ''}${h ? ` · live: ${HEALTH_TEXT[h.health]}${h.error ? ` (${h.error})` : ''}${h.nodes?.length ? ` on ${h.nodes.join(', ')}` : ''}` : ''}${events !== undefined ? ` · ${events.toLocaleString()} events in the last hour` : ''}${notes?.get(n.key) ? ` · ${notes.get(n.key)}` : ''}`}
               </title>
               <rect width={NODE_W} height={NODE_H} rx={6} />
               {h && <circle className={`flow-health flow-health--${h.health.toLowerCase()}`} cx={NODE_W - 5} cy={5} r={3.5} />}

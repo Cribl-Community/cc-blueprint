@@ -13,6 +13,7 @@ import { useRuleSettings } from './ui/useRuleSettings';
 import { useSuppressions } from './ui/useSuppressions';
 import { useHealth } from './ui/useHealth';
 import { useInventory } from './ui/useInventory';
+import { useLineage } from './ui/useLineage';
 import { useNodes } from './ui/useNodes';
 import { useThroughput } from './ui/useThroughput';
 
@@ -38,6 +39,7 @@ function App() {
   const health = useHealth(groupId, inv.state === 'ready' ? inv.loadedAt : null);
   const throughput = useThroughput(groupId, inv.state === 'ready' ? inv.loadedAt : null);
   const nodes = useNodes(groupId, inv.state === 'ready' ? inv.loadedAt : null);
+  const lineage = useLineage(load.state === 'ready' ? load.groups : null, inv.state === 'ready' ? inv.loadedAt : null);
   const suppressions = useSuppressions(groupId);
   const ruleSettings = useRuleSettings(groupId);
   // Rule settings apply before anything else, so every tab, count, and export follows them.
@@ -140,7 +142,7 @@ function App() {
                   {w}
                 </Alert>
               ))}
-            {inv.state === 'ready' && tab === 'asbuilt' && <AsBuiltTab inventory={inv.inventory} graph={inv.graph} findings={split.active} suppressed={split.suppressed} health={health} throughput={throughput} nodes={{ ...nodes, label: group.kind === 'fleet' ? 'Edge Nodes' : 'Worker Nodes' }} />}
+            {inv.state === 'ready' && tab === 'asbuilt' && <AsBuiltTab inventory={inv.inventory} graph={inv.graph} findings={split.active} suppressed={split.suppressed} health={health} throughput={throughput} nodes={{ ...nodes, label: group.kind === 'fleet' ? 'Edge Nodes' : 'Worker Nodes' }} groupKind={group.kind} lineage={lineage} />}
             {inv.state === 'ready' && tab === 'linter' && (
               <LinterTab
                 inventory={inv.inventory}

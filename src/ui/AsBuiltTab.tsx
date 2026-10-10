@@ -32,6 +32,8 @@ import { compact } from './format';
 import { configVersions, unknownObjects, type NodeInfo } from '../api/nodes';
 import type { HealthState } from './useHealth';
 import type { NodesState } from './useNodes';
+import type { LineageLink } from '../model/lineage';
+import type { LineageState } from './useLineage';
 import type { ThroughputState } from './useThroughput';
 
 interface Props {
@@ -44,6 +46,9 @@ interface Props {
   throughput: ThroughputState;
   /** Worker or Edge Nodes, labelled for the group's kind. */
   nodes: NodesState & { label: string };
+  groupKind: 'stream' | 'fleet';
+  /** Edge → Stream links across all groups. */
+  lineage: LineageState;
 }
 
 const yesNo = (v: unknown) => (v ? 'Yes' : 'No');
@@ -278,6 +283,78 @@ function NodesSection({ nodes, inventory }: { nodes: Props['nodes']; inventory: 
   );
 }
 
+type LinkRow = LineageLink & { id: string; events?: number } & Record<string, unknown>;
+
+const confidenceTag = (v: unknown) =>
+  v === 'certain' ? (
+    <Tag color="success">Certain</Tag>
+  ) : (
+    <span title="Same transport and port, but the hostname doesn't name the group, e.g. a load balancer">
+      <Tag color="warning">Possible</Tag>
+    </span>
+  );
+const eventsCell = (v: unknown) => (typeof v === 'number' ? compact(v) : '—');
+
+const outgoingColumns = defineColumns<LinkRow>([
+  { id: 'output', label: 'Destination' },
+  { id: 'endpoint', label: 'Sends to', render: mono },
+  { id: 'group', label: 'Stream group' },
+  { id: 'input', label: 'Source' },
+  { id: 'confidence', label: 'Match', render: confidenceTag },
+  { id: 'events', label: 'Events sent (1 h)', render: eventsCell },
+]);
+
+const incomingColumns = defineColumns<LinkRow>([
+  { id: 'input', label: 'Source' },
+  { id: 'fleet', label: 'Edge Fleet' },
+  { id: 'output', label: 'Fleet Destination' },
+  { id: 'confidence', label: 'Match', render: confidenceTag },
+  { id: 'events', label: 'Events received (1 h)', render: eventsCell },
+]);
+
+/** This group's links: where a Fleet sends, or which Fleets send to a Worker Group. */
+const linksFor = (links: LineageLink[] | undefined, group: string, kind: Props['groupKind']) =>
+  (links ?? []).filter((l) => (kind === 'fleet' ? l.fleet === group : l.group === group));
+
+function LineageSection({ group, kind, lineage, live }: { group: string; kind: Props['groupKind']; lineage: LineageState; live?: Throughput }) {
+  if (lineage.error) {
+    return (
+      <section className="section">
+        <Text as="h2" variant="heading">{kind === 'fleet' ? 'Sends to Stream' : 'Receives from Edge Fleets'}</Text>
+        <Text variant="body-sm-normal">{`Lineage unavailable: ${lineage.error}`}</Text>
+      </section>
+    );
+  }
+  if (!lineage.links) return null;
+  const links = linksFor(lineage.links, group, kind);
+  // A Worker Group nothing sends to doesn't need an empty section.
+  if (kind === 'stream' && !links.length) return null;
+  const rows: LinkRow[] = links.map((l, i) => ({
+    ...l,
+    id: String(i),
+    events: live && (kind === 'fleet' ? live.destinations.get(`${l.transport}:${l.output}`) : live.sources.get(`${l.transport}:${l.input}`)),
+  }));
+  return (
+    <Section title={kind === 'fleet' ? 'Sends to Stream' : 'Receives from Edge Fleets'} count={links.length}>
+      <Text>
+        {kind === 'fleet'
+          ? "Cribl TCP and HTTP Destinations matched to the Stream Source listening on the same port. On Cribl.Cloud the receiver's hostname names the Worker Group, which makes the match certain."
+          : 'Edge Fleets whose Cribl TCP or HTTP Destinations send to this Worker Group.'}
+      </Text>
+      {links.length === 0 ? (
+        <Text>This Fleet has no enabled Cribl TCP or HTTP Destination that matches a Worker Group&apos;s Source.</Text>
+      ) : (
+        <Table
+          items={rows}
+          columns={kind === 'fleet' ? outgoingColumns : incomingColumns}
+          visibleColumns={kind === 'fleet' ? ['output', 'endpoint', 'group', 'input', 'confidence', 'events'] : ['input', 'fleet', 'output', 'confidence', 'events']}
+          density="compact"
+        />
+      )}
+    </Section>
+  );
+}
+
 function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return (
     <section className="section">
@@ -338,7 +415,19 @@ function nodeCounts(inv: Inventory, t: Throughput): Map<string, number> {
   ]);
 }
 
-export default function AsBuiltTab({ inventory, graph, findings, suppressed, health, throughput, nodes }: Props) {
+export default function AsBuiltTab({ inventory, graph, findings, suppressed, health, throughput, nodes, groupKind, lineage }: Props) {
+  // Diagram tooltips for the ends of Edge → Stream links in this group.
+  const linkNotes = useMemo(() => {
+    const notes = new Map<string, string[]>();
+    for (const l of linksFor(lineage.links, inventory.group, groupKind)) {
+      const [key, note] =
+        groupKind === 'fleet'
+          ? [`destination:${l.output}`, `sends to Stream ${l.group} / ${l.input}${l.confidence === 'possible' ? ' (possible)' : ''}`]
+          : [`source:${l.input}`, `receives from Fleet ${l.fleet} / ${l.output}${l.confidence === 'possible' ? ' (possible)' : ''}`];
+      notes.set(key, [...(notes.get(key) ?? []), note]);
+    }
+    return new Map([...notes].map(([k, v]) => [k, v.join('; ')]));
+  }, [lineage.links, inventory.group, groupKind]);
   const [showCounts, setShowCounts] = useState(false);
   const counts = useMemo(
     () => (throughput.throughput ? nodeCounts(inventory, throughput.throughput) : undefined),
@@ -400,6 +489,7 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
           health={health.health}
           counts={counts}
           showCounts={showCounts && !!counts}
+          notes={linkNotes}
         />
         <div className="flow-legend">
           <span><span className="swatch swatch--error" /> Error</span>
@@ -415,6 +505,7 @@ export default function AsBuiltTab({ inventory, graph, findings, suppressed, hea
         </div>
       </section>
 
+      <LineageSection group={inventory.group} kind={groupKind} lineage={lineage} live={throughput.throughput} />
       <NodesSection nodes={nodes} inventory={inventory} />
       <Section title="Routes" count={report.routes.length}>
         <Table

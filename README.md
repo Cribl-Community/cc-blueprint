@@ -15,6 +15,7 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
   * **As-Built.** Inventory of Sources, Routes (in evaluation order), Pipelines, Destinations, and Packs.
     * A Source → Route → Pipeline → Destination diagram that shows QuickConnect paths. Each object is outlined by its worst lint finding.
     * A Source × Route reach matrix read from the Route filters (never executed): which Routes each Source's events can reach, where a Final Route stops them, and which Routes no Source reaches.
+    * Edge → Stream lineage: each Fleet's Cribl TCP/HTTP Destinations are matched to the Stream Source they feed (certain when the Cribl.Cloud hostname names the Worker Group, possible on a port-only match), with last-hour events on each side. A Worker Group lists the Fleets that send to it.
     * Worker and Edge Nodes: hostname, status, OS, Cribl and config version, last seen, and resources, with a warning when nodes run different config versions or report Sources and Destinations the config doesn't contain.
     * Live health: each Source and Destination in the diagram shows a green, yellow, or red dot from Cribl's status API, and anything not healthy is listed with its error.
     * Live events: last-hour event counts on Sources, Routes, and Destinations, and in every reach-matrix cell, so a "?" becomes evidence. Cells where events arrived although the filters say they can't are flagged.
@@ -177,6 +178,7 @@ This app is built by Steve Hunger (Presidio) for the CriblCon 2026 App Hackathon
 
 * Stream Worker Groups and Edge Fleets. Search and Outpost groups are out of scope.
 * Subfleets are listed like any Fleet, but inherited config isn't shown separately yet: Blueprint documents what the API returns for each Fleet.
+* Lineage reads up to 20 Fleets and 20 Worker Groups per refresh. Behind a load balancer or custom DNS, matches are by transport and port only and are marked "possible".
 * Live health checks up to 10 connected nodes per refresh and says how many it checked. The group-level status summary is used only when no node can be read, and the app says so, because it can report Green while a node reports errors.
 * Up to 100 nodes are listed per group; the count covers all of them. Config-version drift is detected between nodes, not against the group's deployed version, which Fleets don't report.
 * Collector jobs are not read, so a pipeline used only by a Collector is reported as an orphan (L03). The fix text says so.
