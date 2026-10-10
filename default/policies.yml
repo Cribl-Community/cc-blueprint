@@ -1,0 +1,39 @@
+# Product API access declaration. Admins see these at install time; grants apply app-wide.
+# Keep this in sync with the "Cribl API Endpoints Used" table in README.md.
+policies:
+  - object: '/master/groups'
+    actions: ['GET']
+  - object: '/master/groups/*'
+    actions: ['GET']
+  - object: '/m/:gid/routes'
+    actions: ['GET']
+  - object: '/m/:gid/routes/*'
+    # PATCH: the L01 fix-it reorders the Routing table after an explicit preview and confirm.
+    actions: ['GET', 'PATCH']
+  - object: '/m/:gid/pipelines'
+    actions: ['GET']
+  - object: '/m/:gid/system/inputs'
+    actions: ['GET']
+  - object: '/m/:gid/system/outputs'
+    actions: ['GET']
+  - object: '/m/:gid/packs'
+    actions: ['GET']
+  # Live health on the As-Built tab (read-only). Read per node; the group-level paths are the
+  # fallback, and Worker API paths must be declared alongside their group equivalents anyway.
+  - object: '/m/:gid/system/status/inputs'
+    actions: ['GET']
+  - object: '/m/:gid/system/status/outputs'
+    actions: ['GET']
+  - object: '/w/:wid/system/status/inputs'
+    actions: ['GET']
+  - object: '/w/:wid/system/status/outputs'
+    actions: ['GET']
+  # Last-hour event counts (read-only query; POST only carries the query). Leader-level, so no group prefix.
+  - object: '/system/metrics/query'
+    actions: ['POST']
+  # Connected Worker/Edge Node count for the As-Built summary.
+  - object: '/master/summary/workers'
+    actions: ['GET']
+  # Worker/Edge Node details for the As-Built nodes table (read-only).
+  - object: '/master/workers'
+    actions: ['GET']
