@@ -33,7 +33,7 @@
     "vitest": "^4.1.11"
   },
   "displayName": "Cribl Blueprint",
-  "description": "As-built documentation, risk linting, and snapshot diffs for Cribl Stream Worker Groups.",
+  "description": "As-built documentation, risk linting, live health, and snapshot diffs for Cribl Stream Worker Groups and Edge Fleets.",
   "author": "Steve Hunger - shunger@presidio.com",
   "minLogStreamVersion": "4.18.0",
   "cribl": {
@@ -42,7 +42,8 @@
   },
   "tags": {
     "product": [
-      "stream"
+      "stream",
+      "edge"
     ]
   },
   "license": "Apache-2.0"

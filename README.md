@@ -4,7 +4,7 @@ Cribl Blueprint documents what is deployed in a Cribl Stream Worker Group or Edg
 
 ## Summary
 
-Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or hand off a Cribl Stream deployment. It generates an as-built report with a data-flow diagram and a Markdown export. It lints the configuration for risky patterns, such as silently dropped data, hardcoded secrets, and shadowed routes. It also keeps labelled snapshots, so a handoff or change review has a record of exactly what changed.
+Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or hand off a Cribl Stream or Edge deployment. It generates an as-built report with a data-flow diagram and a Markdown export, shows live health and event counts next to the configuration, and traces data from Edge Fleets into Stream. It lints the configuration for risky patterns, such as silently dropped data, hardcoded secrets, shadowed routes, and duplicate delivery. It also keeps labelled snapshots, so a handoff or change review has a record of exactly what changed.
 
 ![As-Built tab with the data-flow diagram](docs/screenshots/as-built.png)
 
@@ -22,11 +22,11 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
     * Live events: last-hour event counts on Sources, Routes, and Destinations, and in every reach-matrix cell, so a "?" becomes evidence. Cells where events arrived although the filters say they can't are flagged.
     * A Source → Destination matrix: where each Source's data ends up, following Routes, QuickConnect, the default alias, and Output Router rules.
     * One-click Markdown export: a handoff document with a Mermaid flowchart, every table, and the findings.
-  * **Linter.** Thirteen rules with severity, evidence, and a one-line fix. Findings can be suppressed with a reason, and suppressions persist for the whole team. Rules can be turned off or given a different severity per Worker Group.
+  * **Linter.** Thirteen rules with severity, evidence, and a one-line fix. Findings can be suppressed with a reason, and suppressions persist for the whole team. Rules can be turned off or given a different severity per Worker Group or Fleet.
   * **L01 fix-it.** Reorders a shadowing route after a before/after preview and explicit confirmation. The change is left uncommitted for review.
   * **Snapshots.** Labelled point-in-time captures. Compare any two, or a snapshot against the current config, with route-order and field-level changes, plus which Routes each Source gains or loses. The L01 fix-it preview shows the same per-Source changes before anything is written.
 * Intended users: Cribl admins, platform owners, consultants.
-* Works with: Cribl Stream on Cribl.Cloud.
+* Works with: Cribl Stream Worker Groups and Cribl Edge Fleets on Cribl.Cloud.
 
 ### Lint rules
 
@@ -46,21 +46,23 @@ Cribl Blueprint is a Cribl App for admins and consultants who inherit, audit, or
 | L12 | Same data delivered twice: a non-Final Route and a later Route send the same Sources' events through the same Pipeline to the same Destination | Warning |
 | L13 | Events dropped after expensive work: a Drop, Sampling, Regex Filter, or Suppress function that only reads raw fields runs after Regex Extract, Parser, Lookup, and similar | Info |
 
-Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-configquest-for-cribl). Config Quest is a read-only browser and hygiene checker across groups. Blueprint focuses on the handoff document, risk rules, recorded suppressions, labelled snapshot diffs, and a confirmed fix-it.
+Blueprint complements [Config Quest](https://github.com/Cribl-Community/cc-di-configquest-for-cribl). Config Quest is a read-only browser and hygiene checker across groups. Blueprint focuses on the handoff document, filter-aware reach and delivery analysis, live health and event counts, Edge → Stream lineage, risk rules, recorded suppressions, labelled snapshot diffs, and a confirmed fix-it.
 
 ## When To Use This App
 
 * You inherit a Cribl deployment and need to know what is actually running.
 * You are handing a deployment to a customer or another team and need an as-built document.
 * Before and after a change window, to record exactly what changed.
-* As a periodic risk review: dropped data, credentials in pipelines, dead config.
+* As a periodic risk review: dropped data, credentials in pipelines, dead config, duplicate delivery.
+* To check that what's configured is what's running: unhealthy Sources and Destinations, Routes that receive no events, Edge Nodes on different config versions.
+* To see where an Edge Fleet's data lands in Stream.
 
 ## Before You Install
 
-* Required Cribl product or deployment type: Cribl Stream on Cribl.Cloud (Apps are Cribl.Cloud only). Tested on 4.20.1; minimum 4.18.0.
+* Required Cribl product or deployment type: Cribl Stream and/or Cribl Edge on Cribl.Cloud (Apps are Cribl.Cloud only). Tested on 4.20.1 with a 4.20.2 Edge Node; minimum 4.18.0.
 * Required permissions or roles:
   * Installing needs Organization Administrator.
-  * Using the app needs read access to the Worker Group's config.
+  * Using the app needs read access to the Worker Group's or Fleet's config. Node details, live health, and event counts also need read access to the Leader's node list and metrics; without it those panels say they're unavailable and the rest of the report still works.
   * The optional L01 fix-it needs write access to Routes.
 * Required external systems or APIs: none.
 * Required configuration values: none.
@@ -93,8 +95,8 @@ Blueprint has no settings. It reads the Worker Groups and Fleets the signed-in u
 ## How To Use
 
 ### Typical Workflow
-1. Open **Cribl Blueprint** from the Apps page and pick a Worker Group.
-2. **As-Built:** review the summary and diagram. Hover any Source, Route, Pipeline, or Destination to trace its path; the vertical Routing table line shows Sources whose events are evaluated against Routes in order. Tracing reads Route filters: a Source lights only the Routes it can reach (solid for a definite match, dashed when it depends on event content), and a Final Route that definitely matches stops it. Click **Export Markdown** for the handoff document.
+1. Open **Cribl Blueprint** from the Apps page and pick a Worker Group or Edge Fleet in the **Group** menu.
+2. **As-Built:** review the summary, the live health line, and the diagram. Turn on **Show events from the last hour** to see event counts on the diagram. Hover any Source, Route, Pipeline, or Destination to trace its path; the vertical Routing table line shows Sources whose events are evaluated against Routes in order. Tracing reads Route filters: a Source lights only the Routes it can reach (solid for a definite match, dashed when it depends on event content), and a Final Route that definitely matches stops it. Below the diagram, the reach and Source → Destination matrices, Edge → Stream lineage, and the node list complete the picture. Click **Export Markdown** for the handoff document.
 3. **Snapshots:** take a snapshot labelled, for example, "before".
 4. **Linter:** review findings, highest severity first.
    * Click an object to see its details.
@@ -107,7 +109,7 @@ Blueprint has no settings. It reads the Worker Groups and Fleets the signed-in u
 ![Snapshot comparison showing a route reorder](docs/screenshots/snapshot-diff.png)
 
 ### First-Run Checklist
-* Pick a Worker Group; the As-Built tab loads within a few seconds.
+* Pick a Worker Group or Fleet; the As-Built tab loads within a few seconds, then health, node, event, and lineage panels fill in.
 * If a yellow "Uncommitted changes" banner appears, the report includes edits that are not committed yet.
 * Take a baseline snapshot before making changes.
 
@@ -115,11 +117,13 @@ Blueprint has no settings. It reads the Worker Groups and Fleets the signed-in u
 
 Every API call runs as the signed-in user, with that user's own Cribl permissions, through the Apps platform's proxy. Blueprint never sees or stores tokens.
 
-* **Core (read-only):** the Worker Group list and the five config collections below.
+* **Core (read-only):** the Worker Group and Fleet list and the five config collections below.
+* **Live data (read-only):** the node list and count, per-node status, and the metrics query for last-hour event counts. The metrics query is a POST only because it carries the query; it changes nothing.
 * **Optional (write):** reordering a group's Routing table for the L01 fix-it. It only runs after the user clicks **Fix it…**, reviews the preview, and confirms. The change is saved as uncommitted config; Blueprint never commits or deploys.
 * **If access is denied:**
   * A group that can't be read shows an error with Retry.
   * If Packs can't be read, the report continues without them and shows a warning.
+  * If live health, node details, event counts, or lineage can't be read, that panel says why and the rest of the report is unaffected.
   * A failed fix-it write leaves the Routing table unchanged and shows the error.
 
 ### Cribl API Endpoints Used
@@ -139,7 +143,7 @@ Every API call runs as the signed-in user, with that user's own Cribl permission
 | GET | `/api/v1/m/{group}/system/status/inputs` and `/outputs` | Fallback when no node can be read |
 | POST | `/api/v1/system/metrics/query` | Read-only: last-hour event counts per Source, Route, Destination, and Source × Route, filtered to the group |
 | PATCH | `/api/v1/m/{group}/routes/{id}` | L01 fix-it only: write the reordered Routing table after confirmation |
-| GET, PUT, DELETE | `/api/v1/a/cc-blueprint/kvstore/*` | App-scoped KV store for snapshots and suppressions (granted automatically) |
+| GET, PUT, DELETE | `/api/v1/a/cc-blueprint/kvstore/*` | App-scoped KV store for snapshots, suppressions, and rule settings (granted automatically) |
 | POST | `/api/v1/a/cc-blueprint/kvstore/keys` | List snapshot keys by prefix |
 
 ## External API Access
@@ -148,7 +152,7 @@ Blueprint makes no external calls.
 
 ### Default Configuration
 * `default/proxies.yml`: empty. No proxy hosts are declared.
-* `default/policies.yml`: GET on the endpoints above, plus PATCH on `/m/:gid/routes/*` for the fix-it.
+* `default/policies.yml`: GET on the endpoints above, POST on `/system/metrics/query` (read-only query), and PATCH on `/m/:gid/routes/*` for the fix-it.
 * `default/schedules.yml`: empty. There are no scheduled jobs and no backend functions.
 
 ### External Endpoints
@@ -188,12 +192,15 @@ This app is built by Steve Hunger (Presidio) for the CriblCon 2026 App Hackathon
 * L04 stands down entirely when any enabled route uses an output expression, since any destination could be chosen at runtime. The Linter tab explains why.
 * Routes inside packs are not analyzed; packs appear as pack references.
 * L07 is a heuristic. It can miss secrets, and it can flag random-looking literals that aren't secrets. Suppress false positives with a reason.
-* Snapshots and suppressions made in Live Preview (development) are stored separately from the installed app's.
+* Snapshots, suppressions, and rule settings made in Live Preview (development) are stored separately from the installed app's.
 
 ## Troubleshooting
 
 ### The App Opens But Some Features Do Not Work
-* **"Couldn't load config":** the signed-in user may lack read access to that Worker Group. Check their Stream role.
+* **"Couldn't load config":** the signed-in user may lack read access to that Worker Group or Fleet. Check their Stream or Edge role.
+* **"Live health unavailable", "Node details unavailable", or "Event counts unavailable":** the user can't read the Leader's node list, node status, or metrics. The config report is unaffected.
+* **Live health says it used the group summary:** no node could be read directly. The summary can show Green while a node reports errors; check the node in Cribl's Status tab.
+* **A Fleet's "Sends to Stream" match is "possible":** the Destination's hostname doesn't name a Worker Group (a load balancer or custom DNS), so it was matched by transport and port only.
 * **The fix-it fails:** the user needs write access to Routes. The Routing table is unchanged when this happens.
 * **"The Routing table changed since Blueprint loaded it":** someone edited routes in the meantime. Click **Refresh** and try again.
 
@@ -208,25 +215,25 @@ Live Preview uses the developer's session and a separate KV store (`__dev__cc-bl
 ```bash
 npm install
 npm run dev        # then open Apps > Create App > Live Preview (App ID cc-blueprint) in Cribl
-npm test           # unit tests: model, rules, report, diff, store, fix-it
+npm test           # unit tests: model (filter analyzer, reach, delivery, lineage), rules, report, diff, store, fix-it, API parsers
 npm run package    # build/cc-blueprint-<version>.tgz
 ```
 
 * The rule engine, report builder, diff, and fix planner are pure TypeScript with no Cribl calls. They are tested offline against sanitized fixtures from real workspaces (`test/fixtures/`).
-* Live Preview has a dev-only **Show dev tools** panel, excluded from production builds. It has a raw-config downloader for fixtures and the demo seeder (`demo/SEED.md`).
+* Live Preview has a dev-only **Show dev tools** panel, excluded from production builds. It has a raw-config downloader for fixtures, the demo seeder (`demo/SEED.md`), and probes that capture live status, metrics, Fleet, and per-node health responses for designing against real data.
 * `AGENTS.md` is the Cribl App platform guide from the scaffold. `DECISIONS.md` records every non-obvious choice. `BUILD_PLAN.md` is the build plan.
 
 ## Project Layout
 
 ```text
 src/
-  api/        fetch wrappers: groups, config collections, route reorder (the only write)
-  model/      raw API JSON -> Inventory; reference graph; redaction; built-in pipelines
-  lint/       rule runner + one file per rule (rules/L01.ts … L08.ts)
+  api/        fetch wrappers: groups, config, nodes, health, metrics, lineage, route reorder (the only write)
+  model/      raw API JSON -> Inventory; reference graph; filter analyzer, reach, delivery, lineage; built-ins
+  lint/       rule runner + one file per rule (rules/L01.ts … L13.ts)
   report/     As-Built view model, diagram layout, Markdown export
   diff/       Inventory x Inventory -> ChangeSet
   fix/        L01 fix planner
-  store/      KV client, snapshots, suppressions
+  store/      KV client, snapshots, suppressions, rule settings
   ui/         tabs, diagram, drawers, modals
   dev/        Live Preview-only tools (excluded from builds)
 config/
@@ -236,15 +243,15 @@ config/
 demo/
   seed.ts      the demo group's deliberately broken config (also the "bad" test fixture)
   SEED.md      how to rebuild the demo
-test/fixtures/ sanitized Inventory fixtures
+test/fixtures/ sanitized config fixtures (fresh and lab Worker Groups, a fresh Edge Fleet)
 LICENSE  CREDITS.md  DECISIONS.md  BUILD_PLAN.md
 ```
 
 ## Versioning And Releases
 
 * Semantic versioning. `npm run package` bumps the patch version; use `-- --minor`, `-- --major`, or `-- --version X.Y.Z` to choose.
-* Each GitHub release attaches the exact `.tgz` that passed the clean-install test.
-* Upgrading keeps snapshots and suppressions (KV data is preserved on upgrade).
+* Releases are built by the Cribl-Community release workflow when a `v*` tag is pushed: it lints, packages, creates the GitHub release with the `.tgz`, and uploads to the Packs Dispensary. A `v*-staging` tag goes to the staging dispensary first; each release is install-tested from its staging build before the production tag.
+* Upgrading keeps snapshots, suppressions, and rule settings (KV data is preserved on upgrade).
 
 ## Contributing
 
@@ -252,7 +259,7 @@ Open an issue describing the change first. Pull requests should keep the rule en
 
 ## Credits And AI Disclosure
 
-* Built during the hackathon window starting September 14, 2026.
+* Built during the hackathon window starting September 14, 2026; the hackathon submission was 1.0.5. Later versions (Edge Fleets, live health and events, lineage, the filter analyzer and its rules) were developed after the submission deadline.
 * Written with **Claude Code** (Anthropic), reviewed by the author. See [CREDITS.md](./CREDITS.md) for every library and reference used.
 
 ## License
@@ -267,14 +274,14 @@ Use this table as the canonical source for gallery fields. Keep the left column 
 |---|---|
 | App Name | Cribl Blueprint |
 | App ID | cc-blueprint |
-| Version | 1.0.1 |
+| Version | 1.0.18 |
 | Author | Steve Hunger (Presidio) |
 | Support Model | partner-built |
 | Support Label | Partner Built |
 | Support Contact | https://github.com/Cribl-Community/cc-blueprint/issues |
 | License | Apache-2.0 |
 | License File | [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt) |
-| Product Tags | stream |
+| Product Tags | stream, edge |
 | Category | Configuration management |
 | Audience | admin, platform-owner |
 | Availability | preview |
