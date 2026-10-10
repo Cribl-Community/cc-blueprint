@@ -178,7 +178,7 @@ This app is built by Steve Hunger (Presidio) for the CriblCon 2026 App Hackathon
 ## Known Limitations
 
 * Stream Worker Groups and Edge Fleets. Search and Outpost groups are out of scope.
-* Subfleet provenance relies on the `__srcGroup`/`__srcOverridden` markers Cribl documents for inherited config; it hasn't been verified on a live subfleet yet. If they're absent, the subfleet is still documented, and the As-Built tab says no object was marked inherited.
+* Subfleet provenance relies on the `__srcGroup`/`__srcOverridden` markers Cribl documents for inherited config; it hasn't been verified on a live subfleet yet, since adding Fleets and subfleets needs a Cribl Enterprise license. If they're absent, the subfleet is still documented, and the As-Built tab says no object was marked inherited.
 * Lineage reads up to 20 Fleets and 20 Worker Groups per refresh. Behind a load balancer or custom DNS, matches are by transport and port only and are marked "possible".
 * Live health checks up to 10 connected nodes per refresh and says how many it checked. The group-level status summary is used only when no node can be read, and the app says so, because it can report Green while a node reports errors.
 * Up to 100 nodes are listed per group; the count covers all of them. Config-version drift is detected between nodes, not against the group's deployed version, which Fleets don't report.
